@@ -11,6 +11,9 @@ export const metadata: Metadata = {
   description: 'Dark Hubb Premium — higher quality, downloads, and priority access.',
 }
 
+// Plans are read from the DB — render on request, not at build time.
+export const dynamic = 'force-dynamic'
+
 function formatPrice(cents: number, currency: string): string {
   if (cents <= 0) return 'Free'
   return `${(cents / 100).toFixed(2)} ${currency} / mo`

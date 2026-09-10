@@ -7,6 +7,10 @@ export const metadata: Metadata = {
   description: 'Browse all categories of adult content on Dark Hubb.',
 }
 
+// Catalog data changes with every upload — always render on request,
+// and never fail the production build when the DB is unreachable.
+export const dynamic = 'force-dynamic'
+
 export default async function CategoriesPage() {
   const categories = await getCategories()
 
