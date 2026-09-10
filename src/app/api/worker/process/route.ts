@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/db/prisma'
 import { processVideo } from '@/lib/upload/pipeline'
 
-export const maxDuration = 600 // transcoding + Telegram upload needs minutes
+export const maxDuration = 60 // Hobby ceiling — long transcodes run on the external worker (Mac/VPS), not here
 
 const bodySchema = z.object({ videoId: z.string().min(1).optional() })
 
