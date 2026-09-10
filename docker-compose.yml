@@ -1,0 +1,44 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: darkhubb_postgres
+    environment:
+      POSTGRES_USER: darkhubb
+      POSTGRES_PASSWORD: darkhubb_dev_password
+      POSTGRES_DB: darkhubb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: darkhubb_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+  minio:
+    image: minio/minio:latest
+    container_name: darkhubb_minio
+    environment:
+      MINIO_ROOT_USER: darkhubb_minio_user
+      MINIO_ROOT_PASSWORD: darkhubb_minio_password
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:

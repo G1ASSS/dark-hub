@@ -1,0 +1,271 @@
+@import "tailwindcss";
+
+@theme {
+  --font-outfit: "Outfit", system-ui, sans-serif;
+  --font-inter: "Inter", system-ui, sans-serif;
+  --color-background: hsl(222 20% 4%);
+  --color-foreground: hsl(210 20% 97%);
+  --color-card: hsl(222 18% 7%);
+  --color-primary: hsl(258 85% 65%);
+  --color-accent: hsl(190 100% 55%);
+  --color-muted: hsl(222 16% 11%);
+  --color-muted-foreground: hsl(220 10% 52%);
+  --color-border: hsl(222 14% 16%);
+  --color-secondary: hsl(222 16% 13%);
+  --color-destructive: hsl(0 70% 55%);
+  --color-ring: hsl(258 85% 65%);
+  --radius-lg: 0.875rem;
+  --radius-md: calc(0.875rem - 2px);
+  --radius-sm: calc(0.875rem - 4px);
+}
+
+:root {
+  --glass-bg: rgba(255, 255, 255, 0.035);
+  --glass-border: rgba(255, 255, 255, 0.07);
+  --glass-hover: rgba(255, 255, 255, 0.06);
+
+  /* Violet → electric cyan */
+  --gradient-primary: linear-gradient(135deg, hsl(258, 85%, 65%) 0%, hsl(190, 100%, 55%) 100%);
+  --gradient-primary-hover: linear-gradient(135deg, hsl(258, 90%, 70%) 0%, hsl(190, 100%, 62%) 100%);
+  --gradient-glow: linear-gradient(135deg, rgba(125, 80, 240, 0.25) 0%, rgba(0, 210, 240, 0.2) 100%);
+
+  --shadow-glow: 0 0 50px rgba(100, 60, 220, 0.2), 0 0 100px rgba(0, 200, 230, 0.08);
+  --shadow-glow-sm: 0 0 20px rgba(100, 60, 220, 0.15);
+  --shadow-card: 0 8px 40px rgba(0, 0, 0, 0.5);
+
+  --cyan: hsl(190, 100%, 55%);
+  --violet: hsl(258, 85%, 65%);
+}
+
+* { box-sizing: border-box; }
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: hsl(222 20% 4%);
+  color: hsl(210 20% 97%);
+  font-family: var(--font-outfit), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Subtle animated noise/grain */
+  background-image:
+    radial-gradient(ellipse at 20% 0%, rgba(100,60,220,0.08) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 100%, rgba(0,200,230,0.05) 0%, transparent 60%);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-outfit), system-ui, sans-serif;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+}
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: hsl(222 14% 20%); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: hsl(258 30% 45%); }
+
+:focus-visible {
+  outline: 2px solid hsl(190 100% 55%);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── Glassmorphism ─────────────────────────────────────── */
+.glass {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(16px) saturate(1.5);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+}
+.glass-hover:hover { background: var(--glass-hover); }
+
+/* ── Gradients ──────────────────────────────────────────── */
+.gradient-text {
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+.gradient-primary { background: var(--gradient-primary); }
+.gradient-primary:hover { background: var(--gradient-primary-hover); }
+
+/* ── Glow effects ───────────────────────────────────────── */
+.glow { box-shadow: var(--shadow-glow); }
+.glow-sm { box-shadow: var(--shadow-glow-sm); }
+
+.glow-cyan { box-shadow: 0 0 30px rgba(0, 210, 240, 0.3); }
+.glow-violet { box-shadow: 0 0 30px rgba(125, 80, 240, 0.3); }
+
+/* ── Animated gradient border ───────────────────────────── */
+.gradient-border {
+  position: relative;
+  background: hsl(222 18% 7%);
+}
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--gradient-primary);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* ── Utility ──────────────────────────────────────────── */
+.aspect-video-thumb { aspect-ratio: 16 / 9; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
+.scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+.pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+.pt-safe { padding-top: env(safe-area-inset-top); }
+.line-clamp-1 { overflow:hidden; display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; }
+.line-clamp-2 { overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+.line-clamp-3 { overflow:hidden; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; }
+
+/* ── Animations ─────────────────────────────────────────── */
+.animate-fade-in    { animation: fadeIn 0.35s ease-out both; }
+.animate-slide-up   { animation: slideUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-scale-in   { animation: scaleIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-float      { animation: float 6s ease-in-out infinite; }
+.animate-pulse-glow { animation: pulseGlow 2.5s ease-in-out infinite; }
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes shimmer {
+  0%   { background-position: -1000px 0; }
+  100% { background-position:  1000px 0; }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-8px); }
+}
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 20px rgba(100, 60, 220, 0.3); }
+  50%      { box-shadow: 0 0 40px rgba(0, 200, 230, 0.4); }
+}
+@keyframes gradientShift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ── Skeleton ───────────────────────────────────────────── */
+.skeleton {
+  background: linear-gradient(90deg,
+    hsl(222 16% 11%) 25%,
+    hsl(222 16% 17%) 50%,
+    hsl(222 16% 11%) 75%
+  );
+  background-size: 1000px 100%;
+  animation: shimmer 1.8s infinite linear;
+}
+
+/* ── Age gate overlay ───────────────────────────────────── */
+.age-gate-overlay {
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(100, 60, 220, 0.15) 0%, transparent 70%),
+    radial-gradient(ellipse at 50% 80%, rgba(0, 200, 230, 0.08) 0%, transparent 60%),
+    hsl(222 20% 3%);
+}
+
+/* ── Animated background orbs ──────────────────────────── */
+.bg-orb-1 {
+  position: fixed;
+  top: -20%;
+  left: -10%;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(100, 60, 220, 0.08) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: float 12s ease-in-out infinite;
+}
+.bg-orb-2 {
+  position: fixed;
+  bottom: -20%;
+  right: -10%;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(0, 200, 230, 0.06) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: float 15s ease-in-out infinite reverse;
+}
+
+/* ── Cyan accent utilities ──────────────────────────────── */
+.text-cyan { color: var(--cyan); }
+.text-violet { color: var(--violet); }
+.border-cyan { border-color: rgba(0, 210, 240, 0.3); }
+.bg-cyan-subtle { background: rgba(0, 210, 240, 0.08); }
+.bg-violet-subtle { background: rgba(125, 80, 240, 0.08); }
+
+/* ── iOS Liquid Glass ───────────────────────────────────── */
+/* Floating nav wrapper gives pages extra bottom padding    */
+.has-liquid-nav {
+  padding-bottom: calc(90px + env(safe-area-inset-bottom));
+}
+
+.liquid-glass {
+  background: rgba(22, 22, 30, 0.52);
+  backdrop-filter: blur(52px) saturate(200%) brightness(1.12);
+  -webkit-backdrop-filter: blur(52px) saturate(200%) brightness(1.12);
+  border-radius: 22px;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.15),
+    0 1px 0 0 rgba(255, 255, 255, 0.28) inset,
+    0 -1px 0 0 rgba(0, 0, 0, 0.22) inset,
+    0 8px 32px rgba(0, 0, 0, 0.5),
+    0 2px 8px rgba(0, 0, 0, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Specular streak overlay — the "wet glass" top highlight */
+.liquid-glass::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 15%;
+  right: 15%;
+  height: 1px;
+  border-radius: 9999px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.45) 25%,
+    rgba(255, 255, 255, 0.55) 50%,
+    rgba(255, 255, 255, 0.45) 75%,
+    transparent
+  );
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Inner glass bubble (active tab indicator) */
+.liquid-glass-bubble {
+  background: rgba(255, 255, 255, 0.10);
+  border-radius: 22px;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.22),
+    0 1px 0 0 rgba(255, 255, 255, 0.30) inset,
+    0 -1px 0 0 rgba(0, 0, 0, 0.18) inset,
+    0 4px 12px rgba(0, 0, 0, 0.25);
+}
