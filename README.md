@@ -65,7 +65,24 @@ Run the worker on a schedule (cron every minute, pointed at your domain):
 curl -X POST -H "x-worker-secret: $WORKER_SECRET" https://yourdomain.com/api/worker/process
 ```
 
-## 5. Production checklist
+## 5. Database: local ↔ Supabase
+
+`.env.local` points at Supabase (pooler `DATABASE_URL` for the app,
+`DIRECT_URL` session pooler for migrations). Useful moves:
+
+```bash
+# migrate Supabase (uses DIRECT_URL automatically via .env for the CLI)
+export DATABASE_URL="<DIRECT_URL value>"
+npx --yes prisma@7 migrate deploy
+
+# copy one video's metadata local → Supabase (Telegram files stay valid)
+npx tsx --env-file=.env.local --import ./scripts/preload.mjs scripts/migrate-video.mts <videoId>
+```
+
+The local brew Postgres from §1 still works as a fallback — swap the
+commented `DATABASE_URL` in `.env.local` and restart.
+
+## 6. Production checklist
 
 - New secrets everywhere (`SESSION_SECRET`, `WORKER_SECRET`, …), real
   `ADMIN_INITIAL_PASSWORD`, `APP_BASE_URL=https://yourdomain.com`

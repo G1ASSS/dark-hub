@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "postinstall": "npx --yes prisma@7 generate",
     "db:generate": "npx --yes prisma@7 generate",
     "db:migrate": "npx --yes prisma@7 migrate dev",
     "db:migrate:prod": "npx --yes prisma@7 migrate deploy",
