@@ -24,8 +24,9 @@ const FALLBACK_GRADIENTS = [
 ]
 
 /**
- * Photo tile: admin-uploaded cover or latest video poster; elegant
- * gradient when the category has no imagery yet (never a fake photo).
+ * Poster tile (2:3 portrait like movie-poster grids): admin-uploaded cover
+ * or latest video poster; stylized art fallback when the category has no
+ * imagery yet (never a fake photo).
  */
 export function CategoryTile({
   slug,
@@ -33,7 +34,7 @@ export function CategoryTile({
   videoCount,
   coverUrl,
   index = 0,
-  aspect = 'aspect-square',
+  aspect = 'aspect-[2/3]',
 }: {
   slug: string
   name: string
@@ -42,10 +43,11 @@ export function CategoryTile({
   index?: number
   aspect?: string
 }) {
+  const initial = (name.trim()[0] ?? '?').toUpperCase()
   return (
     <Link
       href={`/search?category=${slug}`}
-      className={`group relative rounded-2xl overflow-hidden ${aspect} flex flex-col justify-end p-3 sm:p-4 text-left transition-all duration-300 hover:scale-[1.03] hover:shadow-[0_8px_40px_rgba(0,0,0,0.5)] bg-white/[0.03]`}
+      className={`group relative rounded-2xl overflow-hidden ${aspect} flex flex-col justify-end text-left transition-all duration-300 hover:scale-[1.03] hover:shadow-[0_8px_40px_rgba(0,0,0,0.5)] bg-white/[0.03]`}
     >
       {coverUrl ? (
         <Image
@@ -60,13 +62,33 @@ export function CategoryTile({
         <div
           className={`absolute inset-0 bg-gradient-to-br ${FALLBACK_GRADIENTS[index % FALLBACK_GRADIENTS.length]}`}
           aria-hidden="true"
-        />
+        >
+          <span
+            aria-hidden="true"
+            className="absolute inset-0 flex items-center justify-center text-[92px] font-black text-white/[0.07] select-none"
+          >
+            {initial}
+          </span>
+          <span
+            aria-hidden="true"
+            className="absolute inset-0 opacity-[0.15]"
+            style={{
+              backgroundImage: 'radial-gradient(rgba(255,255,255,0.5) 1px, transparent 1px)',
+              backgroundSize: '14px 14px',
+            }}
+          />
+        </div>
       )}
       <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent" aria-hidden="true" />
       <div className="absolute inset-0 rounded-2xl border border-white/8 group-hover:border-white/20 transition-colors" aria-hidden="true" />
-      <div className="relative">
-        <h3 className="font-semibold text-xs sm:text-sm leading-tight">{name}</h3>
-        <p className="text-[10px] sm:text-xs text-white/55">{formatVideoCount(videoCount)}</p>
+      {videoCount > 0 && (
+        <div className="absolute top-2 right-2 rounded-lg bg-black/70 backdrop-blur-sm px-2 py-1 text-[11px] font-bold tabular-nums">
+          {videoCount}
+        </div>
+      )}
+      <div className="relative p-3">
+        <h3 className="font-semibold text-xs sm:text-sm leading-tight line-clamp-2">{name}</h3>
+        <p className="text-[10px] sm:text-xs text-white/55 mt-0.5">{formatVideoCount(videoCount)}</p>
       </div>
     </Link>
   )
