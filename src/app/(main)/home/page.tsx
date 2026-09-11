@@ -9,10 +9,16 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { CategoryTile } from '@/components/video/category-tile'
-import type { CategoryTileData } from '@/components/video/category-tile'
 import { formatViews, formatDuration } from '@/lib/utils'
 import type { VideoCardData } from '@/types'
+
+type CategoryRow = {
+  id: string
+  name: string
+  slug: string
+  videoCount: number
+  videos: VideoCardData[]
+}
 
 type ProgressItem = {
   video: VideoCardData
@@ -35,7 +41,7 @@ async function getJSON<T>(url: string): Promise<T | null> {
 export default function HomePage() {
   const [trending, setTrending] = useState<VideoCardData[] | null>(null)
   const [fresh, setFresh] = useState<VideoCardData[] | null>(null)
-  const [categories, setCategories] = useState<CategoryTileData[] | null>(null)
+  const [rows, setRows] = useState<CategoryRow[] | null>(null)
   const [progress, setProgress] = useState<ProgressItem[] | null>(null)
   const [me, setMe] = useState<Me | null>(null)
   const [activeCat, setActiveCat] = useState('all')
@@ -47,14 +53,14 @@ export default function HomePage() {
     Promise.all([
       getJSON<{ data: VideoCardData[] }>('/api/videos?sort=most_viewed&pageSize=8'),
       getJSON<{ data: VideoCardData[] }>('/api/videos?sort=newest&pageSize=12'),
-      getJSON<{ data: CategoryTileData[] }>('/api/categories'),
+      getJSON<{ data: CategoryRow[] }>('/api/categories/rows?limit=8'),
       getJSON<{ data: ProgressItem[] }>('/api/progress'),
       getJSON<{ user: Me }>('/api/auth/me'),
-    ]).then(([t, n, c, p, m]) => {
+    ]).then(([t, n, r, p, m]) => {
       if (cancelled) return
       setTrending(t?.data ?? [])
       setFresh(n?.data ?? [])
-      setCategories(c?.data ?? [])
+      setRows(r?.data ?? [])
       setProgress(p?.data ?? [])
       setMe(m?.user ?? null)
     })
@@ -63,7 +69,7 @@ export default function HomePage() {
     }
   }, [])
 
-  const loading = trending === null || fresh === null || categories === null
+  const loading = trending === null || fresh === null || rows === null
   const hero = (trending ?? []).slice(0, 4)
   const empty = !loading && (trending ?? []).length === 0 && (fresh ?? []).length === 0
   const browse = (fresh ?? []).filter((v) => activeCat === 'all' || v.categories.includes(activeCat))
@@ -194,11 +200,11 @@ export default function HomePage() {
             </section>
           )}
 
-          {/* ── Category pills ───────────────────────────── */}
-          {(categories ?? []).length > 0 && (
+          {/* ── Category pills (only categories that have videos) ── */}
+          {(rows ?? []).length > 0 && (
             <section aria-label="Filter by category">
               <div className="flex gap-5 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0" style={{ scrollbarWidth: 'none' }}>
-                {[{ slug: 'all', name: 'All' }, ...(categories ?? [])].map((c) => {
+                {[{ slug: 'all', name: 'All' }, ...(rows ?? [])].map((c) => {
                   const active = activeCat === c.slug
                   return (
                     <button
@@ -300,7 +306,7 @@ export default function HomePage() {
           <section aria-label="Browse videos">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold">
-                {activeCat === 'all' ? 'Fresh Drops' : (categories ?? []).find((c) => c.slug === activeCat)?.name ?? 'Browse'}
+                {activeCat === 'all' ? 'Fresh Drops' : (rows ?? []).find((c) => c.slug === activeCat)?.name ?? 'Browse'}
               </h2>
               <Link href="/search" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
                 See More <ChevronRight className="h-3.5 w-3.5" />
@@ -352,29 +358,46 @@ export default function HomePage() {
             )}
           </section>
 
-          {/* ── All categories ───────────────────────────── */}
-          {(categories ?? []).length > 0 && (
-            <section aria-label="All categories">
+          {/* ── Category rails: every category shows its own videos ── */}
+          {(rows ?? []).map((row) => (
+            <section key={row.id} aria-label={`${row.name} videos`}>
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold">Categories</h2>
-                <Link href="/categories" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                <h2 className="text-lg font-bold">
+                  {row.name}
+                  <span className="ml-2 text-xs font-medium text-muted-foreground">{row.videoCount}</span>
+                </h2>
+                <Link href={`/search?category=${row.slug}`} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
                   View All <ChevronRight className="h-3.5 w-3.5" />
                 </Link>
               </div>
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
-                {(categories ?? []).slice(0, 6).map((cat, i) => (
-                  <CategoryTile
-                    key={cat.id}
-                    slug={cat.slug}
-                    name={cat.name}
-                    videoCount={cat.videoCount}
-                    coverUrl={cat.coverUrl}
-                    index={i}
-                  />
+              <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0" style={{ scrollbarWidth: 'none' }}>
+                {row.videos.map((v) => (
+                  <Link key={v.id} href={`/watch/${v.id}`} className="group shrink-0 w-64 sm:w-72">
+                    <div className="relative rounded-2xl overflow-hidden aspect-video mb-2">
+                      <Image
+                        src={v.thumbnailUrl}
+                        alt={v.title}
+                        fill
+                        className="object-cover transition-transform duration-500 group-hover:scale-105"
+                        sizes="288px"
+                        unoptimized
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                      {v.duration > 0 && (
+                        <div className="absolute bottom-2 right-2 rounded-md bg-black/80 px-1.5 py-0.5 text-[10px] font-medium tabular-nums">
+                          {formatDuration(v.duration)}
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-sm font-semibold leading-snug line-clamp-1 group-hover:text-cyan transition-colors">{v.title}</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
+                      <Eye className="h-3 w-3" />{formatViews(v.views)} views
+                    </p>
+                  </Link>
                 ))}
               </div>
             </section>
-          )}
+          ))}
         </>
       )}
     </div>
