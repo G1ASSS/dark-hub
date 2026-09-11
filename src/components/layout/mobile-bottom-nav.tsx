@@ -16,7 +16,7 @@ export function MobileBottomNav() {
 
   return (
     <div
-      className="fixed bottom-0 left-0 right-0 z-50 md:hidden flex justify-center pointer-events-none"
+      className="fixed bottom-0 left-0 right-0 z-50 flex justify-center pointer-events-none"
       style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))', paddingLeft: 16, paddingRight: 16 }}
     >
       {/* Floating glass slab */}
