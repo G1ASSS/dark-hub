@@ -235,6 +235,7 @@ model Video {
   thumbnailUrl  String?
   isCommentable Boolean       @default(true)
   publishedAt   DateTime?
+  processingStartedAt DateTime?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   deletedAt     DateTime?

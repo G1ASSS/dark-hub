@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
   let videoId = parsed.data.videoId
   if (!videoId) {
     const next = await prisma.video.findFirst({
-      where: { status: 'PROCESSING' },
+      where: { status: 'PROCESSING', processingStartedAt: null },
       orderBy: { updatedAt: 'asc' },
       select: { id: true },
     })
@@ -36,7 +36,11 @@ export async function POST(req: NextRequest) {
     const result = await processVideo(videoId)
     return Response.json({ processed: true, ...result })
   } catch (err) {
-    console.error('[worker] processVideo failed:', (err as Error).message)
-    return Response.json({ processed: false, videoId, error: (err as Error).message }, { status: 500 })
+    const message = (err as Error).message
+    if (message.includes('already being processed')) {
+      return Response.json({ processed: false, videoId, reason: 'already claimed' }, { status: 409 })
+    }
+    console.error('[worker] processVideo failed:', message)
+    return Response.json({ processed: false, videoId, error: message }, { status: 500 })
   }
 }

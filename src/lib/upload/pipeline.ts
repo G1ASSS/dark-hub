@@ -42,16 +42,52 @@ export async function processVideo(videoId: string): Promise<ProcessResult> {
   const original = video.assets[0]
   if (!original) throw new Error('No ORIGINAL upload asset for this video')
 
+  // Atomic claim: exactly one runner processes a video. Concurrent runners
+  // (cron + manual trigger, or a seed script racing the worker) get a clear
+  // refusal instead of corrupting each other's temp files and uploads.
+  const claimed = await prisma.video.updateMany({
+    where: { id: videoId, status: 'PROCESSING', processingStartedAt: null },
+    data: { processingStartedAt: new Date() },
+  })
+  if (claimed.count === 0) {
+    throw new Error('Video is already being processed by another worker')
+  }
+
   // Note: || (not ??) — an empty env var must fall back to the OS temp dir.
   const workRoot = process.env.UPLOAD_TMP_DIR || join(tmpdir(), 'darkhubb-uploads')
   const workDir = join(workRoot, videoId)
+  const jobStart = new Date()
   await fs.mkdir(workDir, { recursive: true })
 
   const fail = async (message: string): Promise<never> => {
-    await prisma.video.update({ where: { id: videoId }, data: { status: 'UPLOADING' } })
+    await prisma.video.update({
+      where: { id: videoId },
+      data: { status: 'UPLOADING', processingStartedAt: null },
+    })
     await prisma.auditLog.create({
       data: { action: 'VIDEO_PROCESS_FAILED', targetType: 'VIDEO', targetId: videoId, metadata: { message } },
     })
+    // Best-effort: remove anything THIS run pushed to origin (createdAt
+    // gate protects assets from earlier successful runs) and mark the
+    // rows FAILED so retries never mix old and new assets.
+    try {
+      const storage = getStorageProvider()
+      const pushed = await prisma.videoAsset.findMany({
+        where: {
+          videoId,
+          storageStatus: 'STORED',
+          telegramMessageId: { not: null },
+          createdAt: { gte: jobStart },
+        },
+        select: { id: true, telegramChatId: true, telegramMessageId: true },
+      })
+      for (const a of pushed) {
+        try {
+          await storage.deleteMessage(a.telegramChatId!, a.telegramMessageId!)
+        } catch { /* best effort */ }
+        await prisma.videoAsset.update({ where: { id: a.id }, data: { storageStatus: 'FAILED' } })
+      }
+    } catch { /* cleanup must never mask the original error */ }
     await fs.rm(workDir, { recursive: true, force: true })
     throw new Error(message)
   }
@@ -196,6 +232,7 @@ export async function processVideo(videoId: string): Promise<ProcessResult> {
       data: {
         duration: Math.round(source.duration),
         status: 'PENDING_REVIEW',
+        processingStartedAt: null,
         ...(thumbnailUrl ? { thumbnailUrl } : {}),
       },
     })

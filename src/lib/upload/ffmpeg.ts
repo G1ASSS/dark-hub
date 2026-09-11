@@ -72,7 +72,10 @@ export async function transcodeMp4(input: string, output: string, rung: LadderRu
     '-map', '0:v:0', '-map', '0:a?',
     '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23',
     '-maxrate', rung.videoBitrate, '-bufsize', `${Number(rung.videoBitrate.replace('k', '')) * 2}k`,
-    '-vf', `scale=w=${rung.width}:h=${rung.height}:force_original_aspect_ratio=decrease`,
+    // Fit inside the rung, then snap to even dimensions — yuv420p encoders
+    // reject odd sizes (e.g. 853x480 from a 16:9 source), which used to
+    // fail the whole job on innocent inputs.
+    '-vf', `scale=w=${rung.width}:h=${rung.height}:force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2`,
     '-c:a', 'aac', '-b:a', '128k',
     '-movflags', '+faststart',
     output,
