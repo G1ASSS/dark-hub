@@ -2,7 +2,6 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { motion } from 'framer-motion'
 import {
   Play, Eye, Clock, Search, SlidersHorizontal, Bell,
   ChevronRight, Flame, Sparkles, Upload, BellRing,
@@ -11,14 +10,6 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { formatViews, formatDuration } from '@/lib/utils'
 import type { VideoCardData } from '@/types'
-
-type CategoryRow = {
-  id: string
-  name: string
-  slug: string
-  videoCount: number
-  videos: VideoCardData[]
-}
 
 type ProgressItem = {
   video: VideoCardData
@@ -41,10 +32,8 @@ async function getJSON<T>(url: string): Promise<T | null> {
 export default function HomePage() {
   const [trending, setTrending] = useState<VideoCardData[] | null>(null)
   const [fresh, setFresh] = useState<VideoCardData[] | null>(null)
-  const [rows, setRows] = useState<CategoryRow[] | null>(null)
   const [progress, setProgress] = useState<ProgressItem[] | null>(null)
   const [me, setMe] = useState<Me | null>(null)
-  const [activeCat, setActiveCat] = useState('all')
   const [heroIdx, setHeroIdx] = useState(0)
   const heroRef = useRef<HTMLDivElement>(null)
 
@@ -53,14 +42,12 @@ export default function HomePage() {
     Promise.all([
       getJSON<{ data: VideoCardData[] }>('/api/videos?sort=most_viewed&pageSize=8'),
       getJSON<{ data: VideoCardData[] }>('/api/videos?sort=newest&pageSize=12'),
-      getJSON<{ data: CategoryRow[] }>('/api/categories/rows?limit=8'),
       getJSON<{ data: ProgressItem[] }>('/api/progress'),
       getJSON<{ user: Me }>('/api/auth/me'),
-    ]).then(([t, n, r, p, m]) => {
+    ]).then(([t, n, p, m]) => {
       if (cancelled) return
       setTrending(t?.data ?? [])
       setFresh(n?.data ?? [])
-      setRows(r?.data ?? [])
       setProgress(p?.data ?? [])
       setMe(m?.user ?? null)
     })
@@ -69,10 +56,10 @@ export default function HomePage() {
     }
   }, [])
 
-  const loading = trending === null || fresh === null || rows === null
+  const loading = trending === null || fresh === null
   const hero = (trending ?? []).slice(0, 4)
   const empty = !loading && (trending ?? []).length === 0 && (fresh ?? []).length === 0
-  const browse = (fresh ?? []).filter((v) => activeCat === 'all' || v.categories.includes(activeCat))
+  const browse = fresh ?? []
 
   // Hero autoplay
   useEffect(() => {
@@ -200,33 +187,6 @@ export default function HomePage() {
             </section>
           )}
 
-          {/* ── Category pills (only categories that have videos) ── */}
-          {(rows ?? []).length > 0 && (
-            <section aria-label="Filter by category">
-              <div className="flex gap-5 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0" style={{ scrollbarWidth: 'none' }}>
-                {[{ slug: 'all', name: 'All' }, ...(rows ?? [])].map((c) => {
-                  const active = activeCat === c.slug
-                  return (
-                    <button
-                      key={c.slug}
-                      onClick={() => setActiveCat(c.slug)}
-                      className={`relative shrink-0 pb-2 text-sm font-semibold transition-colors ${active ? 'text-white' : 'text-white/40 hover:text-white/70'}`}
-                    >
-                      {c.name}
-                      {active && (
-                        <motion.span
-                          layoutId="cat-pill"
-                          className="absolute -bottom-0.5 left-1/2 h-[3px] w-5 -translate-x-1/2 rounded-full"
-                          style={{ background: 'var(--gradient-primary)' }}
-                        />
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
-            </section>
-          )}
-
           {/* ── Continue Watching ────────────────────────── */}
           {progress && progress.length > 0 && (
             <section aria-label="Continue watching">
@@ -302,12 +262,10 @@ export default function HomePage() {
             </section>
           )}
 
-          {/* ── Browse grid ──────────────────────────────── */}
-          <section aria-label="Browse videos">
+          {/* ── All movies ─────────────────────────────── */}
+          <section aria-label="All movies">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold">
-                {activeCat === 'all' ? 'Fresh Drops' : (rows ?? []).find((c) => c.slug === activeCat)?.name ?? 'Browse'}
-              </h2>
+              <h2 className="text-lg font-bold">All Movies</h2>
               <Link href="/search" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
                 See More <ChevronRight className="h-3.5 w-3.5" />
               </Link>
@@ -357,47 +315,6 @@ export default function HomePage() {
               </div>
             )}
           </section>
-
-          {/* ── Category rails: every category shows its own videos ── */}
-          {(rows ?? []).map((row) => (
-            <section key={row.id} aria-label={`${row.name} videos`}>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold">
-                  {row.name}
-                  <span className="ml-2 text-xs font-medium text-muted-foreground">{row.videoCount}</span>
-                </h2>
-                <Link href={`/search?category=${row.slug}`} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
-                  View All <ChevronRight className="h-3.5 w-3.5" />
-                </Link>
-              </div>
-              <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0" style={{ scrollbarWidth: 'none' }}>
-                {row.videos.map((v) => (
-                  <Link key={v.id} href={`/watch/${v.id}`} className="group shrink-0 w-64 sm:w-72">
-                    <div className="relative rounded-2xl overflow-hidden aspect-video mb-2">
-                      <Image
-                        src={v.thumbnailUrl}
-                        alt={v.title}
-                        fill
-                        className="object-cover transition-transform duration-500 group-hover:scale-105"
-                        sizes="288px"
-                        unoptimized
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                      {v.duration > 0 && (
-                        <div className="absolute bottom-2 right-2 rounded-md bg-black/80 px-1.5 py-0.5 text-[10px] font-medium tabular-nums">
-                          {formatDuration(v.duration)}
-                        </div>
-                      )}
-                    </div>
-                    <p className="text-sm font-semibold leading-snug line-clamp-1 group-hover:text-cyan transition-colors">{v.title}</p>
-                    <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
-                      <Eye className="h-3 w-3" />{formatViews(v.views)} views
-                    </p>
-                  </Link>
-                ))}
-              </div>
-            </section>
-          ))}
         </>
       )}
     </div>
