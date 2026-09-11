@@ -164,6 +164,7 @@ export default function WatchPage({ params }: PageProps) {
                 src={masterUrl ?? SAMPLE_HLS_URL}
                 poster={video.thumbnailUrl}
                 title={video.title}
+                videoId={real?.id}
               />
             )}
           </div>

@@ -10,6 +10,8 @@ interface VideoPlayerProps {
   poster?: string
   title?: string
   autoPlay?: boolean
+  /** Real video id — when set, playback position is reported for Continue Watching. */
+  videoId?: string
 }
 
 function formatTime(seconds: number): string {
@@ -23,7 +25,7 @@ function formatTime(seconds: number): string {
 const QUALITY_OPTIONS = ['Auto', '1080p', '720p', '480p', '360p']
 const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2]
 
-export function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
+export function VideoPlayer({ src, poster, title, videoId }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -91,9 +93,25 @@ export function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
   useEffect(() => {
     const v = videoRef.current
     if (!v) return
+    const report = () => {
+      if (!videoId || !v.duration || v.currentTime < 5) return
+      fetch('/api/progress', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          videoId,
+          position: Math.floor(v.currentTime),
+          duration: Math.floor(v.duration),
+        }),
+        keepalive: true,
+      }).catch(() => {})
+    }
     const handlers = {
       play: () => setPlaying(true),
-      pause: () => setPlaying(false),
+      pause: () => {
+        setPlaying(false)
+        report()
+      },
       timeupdate: () => {
         setCurrentTime(v.currentTime)
         if (v.buffered.length > 0) setBuffered(v.buffered.end(v.buffered.length - 1))
@@ -105,8 +123,15 @@ export function VideoPlayer({ src, poster, title }: VideoPlayerProps) {
       volumechange: () => { setVolume(v.volume); setMuted(v.muted) },
     }
     Object.entries(handlers).forEach(([e, h]) => v.addEventListener(e, h))
-    return () => Object.entries(handlers).forEach(([e, h]) => v.removeEventListener(e, h))
-  }, [])
+    // Periodic position report while playing (drives Continue Watching)
+    const reporter = setInterval(() => {
+      if (!v.paused) report()
+    }, 15000)
+    return () => {
+      Object.entries(handlers).forEach(([e, h]) => v.removeEventListener(e, h))
+      clearInterval(reporter)
+    }
+  }, [videoId])
 
   useEffect(() => {
     const onFs = () => setFullscreen(!!document.fullscreenElement)
