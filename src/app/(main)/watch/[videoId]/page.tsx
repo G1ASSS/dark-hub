@@ -1,10 +1,11 @@
 "use client"
 import { useState, use, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import {
   Play, ThumbsUp, Heart, Share2, Flag, Eye, Clock,
-  ChevronDown, ChevronUp, Send, Lock
+  ChevronDown, ChevronUp, Send, Lock, ArrowLeft
 } from 'lucide-react'
 import { VideoPlayer } from '@/components/video/video-player'
 import { DownloadButton } from '@/components/video/download-button'
@@ -77,6 +78,11 @@ function RelatedVideoCard({ video }: { video: import('@/types').VideoCardData })
 
 export default function WatchPage({ params }: PageProps) {
   const { videoId } = use(params)
+  const router = useRouter()
+  const goBack = () => {
+    if (window.history.length > 1) router.back()
+    else router.push('/home')
+  }
   const mockVideo = MOCK_VIDEOS.find((v) => v.id === videoId) ?? MOCK_VIDEOS[0]
   const [real, setReal] = useState<RealVideo | null>(null)
   const [stream, setStream] = useState<{ videoId: string; url: string | null; denied: boolean } | null>(null)
@@ -287,7 +293,20 @@ export default function WatchPage({ params }: PageProps) {
         <div className="min-w-0">
 
           {/* Video Player */}
-          <div className="rounded-2xl overflow-hidden bg-black mb-5">
+          <div className="relative rounded-2xl overflow-hidden bg-black mb-5">
+            <button
+              onClick={goBack}
+              aria-label="Go back"
+              className="group absolute left-3 top-3 z-20 flex h-10 w-10 items-center justify-center rounded-full transition-all duration-200 hover:scale-105 active:scale-95"
+              style={{
+                background: 'linear-gradient(135deg, rgba(255,255,255,0.14), rgba(255,255,255,0.06))',
+                backdropFilter: 'blur(28px) saturate(180%) brightness(1.12)',
+                WebkitBackdropFilter: 'blur(28px) saturate(180%) brightness(1.12)',
+                boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.35), 0 0 0 0.5px rgba(255,255,255,0.16), 0 8px 24px rgba(0,0,0,0.45)',
+              }}
+            >
+              <ArrowLeft className="h-5 w-5 text-white/85 transition-transform duration-200 group-hover:-translate-x-0.5" />
+            </button>
             {real && tokenDenied && !masterUrl ? (
               <div className="flex flex-col items-center justify-center gap-3 px-6 py-20 text-center">
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl gradient-primary">
