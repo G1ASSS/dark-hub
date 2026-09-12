@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/db/prisma'
 import { verifySession } from '@/lib/auth/dal'
+import { resolveVideoId } from '@/lib/series'
 
 const bodySchema = z.object({ videoId: z.string().min(1) })
 
@@ -13,8 +14,11 @@ export async function POST(req: NextRequest) {
   const parsed = bodySchema.safeParse(await req.json().catch(() => ({})))
   if (!parsed.success) return NextResponse.json({ error: 'videoId is required.' }, { status: 400 })
 
+  const videoId = await resolveVideoId(parsed.data.videoId)
+  if (!videoId) return NextResponse.json({ error: 'Video not found.' }, { status: 404 })
+
   const video = await prisma.video.findFirst({
-    where: { id: parsed.data.videoId, status: 'PUBLISHED', deletedAt: null },
+    where: { id: videoId, status: 'PUBLISHED', deletedAt: null },
     select: { id: true, likes: true },
   })
   if (!video) return NextResponse.json({ error: 'Video not found.' }, { status: 404 })
@@ -42,8 +46,10 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   const session = await verifySession()
   if (!session) return NextResponse.json({ liked: null })
-  const videoId = new URL(req.url).searchParams.get('videoId')
-  if (!videoId) return NextResponse.json({ error: 'videoId is required.' }, { status: 400 })
+  const videoIdRaw = new URL(req.url).searchParams.get('videoId')
+  if (!videoIdRaw) return NextResponse.json({ error: 'videoId is required.' }, { status: 400 })
+  const videoId = await resolveVideoId(videoIdRaw)
+  if (!videoId) return NextResponse.json({ liked: null })
   const existing = await prisma.like.findUnique({
     where: { userId_videoId: { userId: session.userId, videoId } },
     select: { id: true },

@@ -3,6 +3,7 @@ import type { VideoCardData } from '@/types'
 
 export type CatalogVideo = {
   id: string
+  slug?: string | null
   title: string
   thumbnailUrl: string | null
   duration: number | null
@@ -35,6 +36,7 @@ function placeholderThumbnail(title: string): string {
 export function toVideoCardData(v: CatalogVideo): VideoCardData {
   return {
     id: v.id,
+    slug: v.slug ?? null,
     title: v.title,
     thumbnailUrl: v.thumbnailUrl ?? placeholderThumbnail(v.title),
     duration: v.duration ?? 0,
@@ -53,6 +55,7 @@ export function toVideoCardData(v: CatalogVideo): VideoCardData {
 
 export const catalogSelect = {
   id: true,
+  slug: true,
   title: true,
   thumbnailUrl: true,
   duration: true,

@@ -16,6 +16,8 @@ interface VideoPlayerProps {
   qualities?: string[]
   /** Build the variant playlist URL for a rendition (same auth token). */
   getVariantUrl?: (quality: string) => string
+  /** Called once when playback reaches the end (used for next-episode UI). */
+  onEnded?: () => void
 }
 
 function formatTime(seconds: number): string {
@@ -28,7 +30,7 @@ function formatTime(seconds: number): string {
 
 const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2]
 
-export function VideoPlayer({ src, poster, title, videoId, qualities = [], getVariantUrl }: VideoPlayerProps) {
+export function VideoPlayer({ src, poster, title, videoId, qualities = [], getVariantUrl, onEnded }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -59,6 +61,10 @@ export function VideoPlayer({ src, poster, title, videoId, qualities = [], getVa
   const [ripple, setRipple] = useState<{ side: 'left' | 'right'; n: number } | null>(null)
   const clickRef = useRef<{ t: number; x: number } | null>(null)
   const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const onEndedRef = useRef(onEnded)
+  useEffect(() => {
+    onEndedRef.current = onEnded
+  })
 
   // Load HLS
   useEffect(() => {
@@ -133,6 +139,7 @@ export function VideoPlayer({ src, poster, title, videoId, qualities = [], getVa
         setPlaying(false)
         report()
       },
+      ended: () => onEndedRef.current?.(),
       timeupdate: () => {
         setCurrentTime(v.currentTime)
         if (v.buffered.length > 0) setBuffered(v.buffered.end(v.buffered.length - 1))

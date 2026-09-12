@@ -1,5 +1,5 @@
 "use client"
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import Link from 'next/link'
 import { Upload, X, CheckCircle2, AlertTriangle, Film, Image as ImageIcon, Tag, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -25,7 +25,20 @@ export default function UploadPage() {
   const [consentConfirmed, setConsentConfirmed] = useState(false)
   const [ageConfirmed, setAgeConfirmed] = useState(false)
   const [dragging, setDragging] = useState(false)
+  const [contentType, setContentType] = useState<'standalone' | 'episode'>('standalone')
+  const [seriesList, setSeriesList] = useState<{ slug: string; title: string; episodeCount: number }[]>([])
+  const [seriesSlug, setSeriesSlug] = useState('')
+  const [episodeNumber, setEpisodeNumber] = useState('')
+  const [episodeTitle, setEpisodeTitle] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
+
+  // Series picker options (published series)
+  useEffect(() => {
+    fetch('/api/series')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setSeriesList(d?.data ?? []))
+      .catch(() => {})
+  }, [])
 
   const handleFileDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -107,13 +120,18 @@ export default function UploadPage() {
 
   const startUpload = async () => {
     if (!file || !title || !consentConfirmed || !ageConfirmed) return
+    if (contentType === 'episode' && !seriesSlug) {
+      setError('Choose a series for this episode.')
+      setStage('error')
+      return
+    }
     setError(null)
     setResultStatus(null)
     try {
       setStage('uploading')
       setProgress(0)
 
-      // 1. Reserve the video row
+      // 1. Reserve the video row (optionally linked as a series episode)
       const initRes = await fetch('/api/upload/init', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -122,6 +140,13 @@ export default function UploadPage() {
           description: description || undefined,
           categorySlugs: selectedCategories,
           tags,
+          ...(contentType === 'episode'
+            ? {
+                seriesSlug,
+                episodeNumber: episodeNumber ? Number(episodeNumber) : undefined,
+                episodeTitle: episodeTitle.trim() || undefined,
+              }
+            : {}),
         }),
       })
       if (!initRes.ok) throw new Error(await apiError(initRes, 'Could not start upload'))
@@ -263,6 +288,74 @@ export default function UploadPage() {
                 <Label htmlFor="video-desc">Description</Label>
                 <Textarea id="video-desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Describe your video, performers, and scenario (optional)" rows={4} maxLength={2000} />
               </div>
+
+              {/* Content type: standalone vs series episode */}
+              <div className="space-y-2">
+                <Label>Content Type</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(['standalone', 'episode'] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setContentType(t)}
+                      className={`px-3 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                        contentType === t
+                          ? 'gradient-primary text-white'
+                          : 'border border-white/10 bg-white/5 text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {t === 'standalone' ? 'Standalone Video' : 'Series Episode'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {contentType === 'episode' && (
+                <div className="space-y-4 rounded-xl border border-violet-500/20 bg-violet-500/[0.06] p-4 animate-slide-up">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="series">Series <span className="text-rose-400">*</span></Label>
+                    <select
+                      id="series"
+                      value={seriesSlug}
+                      onChange={(e) => setSeriesSlug(e.target.value)}
+                      className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring [&>option]:bg-[#14141c]"
+                      required
+                    >
+                      <option value="">Select a series…</option>
+                      {seriesList.map((s) => (
+                        <option key={s.slug} value={s.slug}>
+                          {s.title} ({s.episodeCount} episodes)
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[11px] text-muted-foreground">New series are created by staff in Admin → Series.</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="ep-num">Episode Number</Label>
+                      <Input
+                        id="ep-num"
+                        type="number"
+                        min={1}
+                        max={10000}
+                        value={episodeNumber}
+                        onChange={(e) => setEpisodeNumber(e.target.value)}
+                        placeholder="e.g. 4"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="ep-title">Episode Title</Label>
+                      <Input
+                        id="ep-title"
+                        value={episodeTitle}
+                        onChange={(e) => setEpisodeTitle(e.target.value)}
+                        maxLength={120}
+                        placeholder="Defaults to Episode 04"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Categories */}
               <div className="space-y-2">

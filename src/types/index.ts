@@ -29,6 +29,7 @@ export type VerificationStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDE
 
 export interface VideoCardData {
   id: string
+  slug?: string | null
   title: string
   thumbnailUrl: string
   duration: number // seconds

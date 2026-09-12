@@ -1,8 +1,13 @@
 "use client"
 import { Suspense, useState, useRef, useEffect, useCallback } from 'react'
+import Link from 'next/link'
+import Image from 'next/image'
 import { useSearchParams } from 'next/navigation'
-import { Search, SlidersHorizontal, X, TrendingUp, Clock, ThumbsUp } from 'lucide-react'
+import { Search, SlidersHorizontal, X, TrendingUp, Clock, ThumbsUp, Play } from 'lucide-react'
 import { VideoGrid } from '@/components/video/video-grid'
+import { SeriesCard } from '@/components/video/series-card'
+import type { SeriesCardData } from '@/lib/series'
+import type { EpisodeMatch } from '@/app/api/search/route'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { MOCK_CATEGORIES } from '@/lib/mock-data'
@@ -36,7 +41,10 @@ function SearchInner() {
   const [showFilters, setShowFilters] = useState(false)
   const [loading, setLoading] = useState(true)
   const [results, setResults] = useState<VideoCardData[]>([])
+  const [series, setSeries] = useState<SeriesCardData[]>([])
+  const [episodes, setEpisodes] = useState<EpisodeMatch[]>([])
   const [total, setTotal] = useState(0)
+  const [kindTab, setKindTab] = useState<'all' | 'series' | 'videos'>('all')
   const [filters, setFilters] = useState<Partial<SearchFilters>>({
     sort: (params.get('sort') as SearchFilters['sort']) || 'relevance',
     category: params.get('category') || undefined,
@@ -62,9 +70,17 @@ function SearchInner() {
         if (f.uploadDate) sp.set('uploadDate', f.uploadDate)
         if (f.category) sp.set('category', f.category)
         const res = await fetch(`/api/search?${sp}`, { signal })
-        const data = (await res.json()) as { data?: VideoCardData[]; total?: number }
+        const data = (await res.json()) as {
+          data?: VideoCardData[]
+          videos?: VideoCardData[]
+          series?: SeriesCardData[]
+          episodes?: EpisodeMatch[]
+          total?: number
+        }
         if (signal.aborted) return
-        setResults(data.data ?? [])
+        setResults(data.videos ?? data.data ?? [])
+        setSeries(data.series ?? [])
+        setEpisodes(data.episodes ?? [])
         setTotal(data.total ?? 0)
       } else {
         if (f.sort && f.sort !== 'relevance') sp.set('sort', f.sort)
@@ -73,11 +89,15 @@ function SearchInner() {
         const data = (await res.json()) as { data?: VideoCardData[]; total?: number }
         if (signal.aborted) return
         setResults(data.data ?? [])
+        setSeries([])
+        setEpisodes([])
         setTotal(data.total ?? 0)
       }
     } catch {
       if (!signal.aborted) {
         setResults([])
+        setSeries([])
+        setEpisodes([])
         setTotal(0)
       }
     } finally {
@@ -268,11 +288,79 @@ function SearchInner() {
         </div>
       )}
 
-      {/* Results */}
-      <VideoGrid videos={results} loading={loading} />
+      {/* Kind tabs: All / Series / Videos */}
+      {query.trim() && (series.length > 0 || episodes.length > 0) && (
+        <div className="flex gap-2 mb-6">
+          {(['all', 'series', 'videos'] as const).map((k) => (
+            <button
+              key={k}
+              onClick={() => setKindTab(k)}
+              className={`px-4 py-1.5 rounded-full text-xs font-semibold capitalize transition-all ${
+                kindTab === k
+                  ? 'gradient-primary text-white'
+                  : 'border border-white/10 bg-white/5 text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {k}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Series matches (grouped — episodes collapse into the card) */}
+      {(kindTab === 'all' || kindTab === 'series') && series.length > 0 && (
+        <div className="mb-8">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Series</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            {series.map((s) => (
+              <SeriesCard key={s.id} series={s} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Direct episode matches */}
+      {(kindTab === 'all' || kindTab === 'videos') && episodes.length > 0 && (
+        <div className="mb-8">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Episodes</p>
+          <div className="space-y-2">
+            {episodes.map((e) => (
+              <Link
+                key={e.videoId}
+                href={e.href}
+                className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.03] p-2.5 pr-4 transition-all hover:border-white/20 hover:bg-white/[0.06]"
+              >
+                <span className="w-9 shrink-0 text-center text-base font-black tabular-nums text-white/35">
+                  {String(e.episodeNumber).padStart(2, '0')}
+                </span>
+                <span className="relative h-12 w-20 shrink-0 overflow-hidden rounded-lg">
+                  {e.thumbnailUrl ? (
+                    <Image src={e.thumbnailUrl} alt="" fill className="object-cover" sizes="80px" unoptimized />
+                  ) : null}
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="block truncate text-sm font-semibold">{e.title}</span>
+                  <span className="block truncate text-xs text-muted-foreground">{e.seriesTitle}</span>
+                </span>
+                <Play className="h-4 w-4 text-white/50 shrink-0" fill="currentColor" />
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Videos */}
+      {(kindTab === 'all' || kindTab === 'videos') && (
+        <>
+          {((kindTab === 'all' && (series.length > 0 || episodes.length > 0)) || kindTab === 'videos') && results.length > 0 && (
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Videos</p>
+          )}
+          <VideoGrid videos={results} loading={loading} />
+        </>
+      )}
 
       {/* Empty state */}
-      {!loading && results.length === 0 && (
+      {!loading && results.length === 0 && series.length === 0 && episodes.length === 0 && (
         <div className="text-center py-16">
           <div className="h-16 w-16 rounded-full bg-secondary flex items-center justify-center mx-auto mb-4">
             <Search className="h-8 w-8 text-muted-foreground" />

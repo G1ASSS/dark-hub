@@ -17,10 +17,19 @@ import { MOCK_VIDEOS, MOCK_TRENDING, formatDuration, formatViews, formatTimeAgo 
 import { getInitials, anonymizeName } from '@/lib/utils'
 import type { VideoCardData } from '@/types'
 
+type SeriesInfo = {
+  id: string
+  title: string
+  slug: string
+  currentEpisode: number
+  episodes: { episodeNumber: number; title: string; duration: number | null; href: string; videoId: string }[]
+}
+
 type RealVideo = VideoCardData & {
   description: string | null
   likes: number
   qualities: string[]
+  series: SeriesInfo | null
 }
 
 const SAMPLE_HLS_URL = 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8'
@@ -35,6 +44,62 @@ const MOCK_COMMENTS = [
   { id: '3', user: { username: 'nightv', displayName: 'Night V', avatarUrl: 'https://api.dicebear.com/8.x/avataaars/svg?seed=nightv' }, body: 'Every video on this platform is more beautiful than the last.', createdAt: new Date(Date.now() - 3600000 * 12).toISOString() },
 ]
 
+
+function NextUpCard({
+  next,
+  seriesTitle,
+  onCancel,
+}: {
+  next: { episodeNumber: number; title: string; href: string }
+  seriesTitle: string
+  onCancel: () => void
+}) {
+  const router = useRouter()
+  const [countdown, setCountdown] = useState(5)
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      setCountdown((c) => {
+        if (c <= 1) {
+          clearInterval(t)
+          router.push(next.href)
+          return 0
+        }
+        return c - 1
+      })
+    }, 1000)
+    return () => clearInterval(t)
+  }, [next.href, router])
+
+  return (
+    <div className="mb-5 rounded-2xl border border-violet-500/25 bg-violet-500/[0.07] p-5 animate-scale-in">
+      <p className="text-xs font-semibold uppercase tracking-wider text-violet-300 mb-1">Next Episode</p>
+      <h3 className="font-bold">
+        Episode {String(next.episodeNumber).padStart(2, '0')} — {next.title}
+      </h3>
+      <p className="text-xs text-muted-foreground mb-4">{seriesTitle}</p>
+      <div className="flex items-center gap-3">
+        <Link href={next.href} className="flex-1">
+          <Button className="w-full gap-2 btn-shine">
+            <Play className="h-4 w-4" fill="white" /> Play Next Episode
+          </Button>
+        </Link>
+        <Button variant="outline" size="sm" onClick={onCancel}>
+          Cancel{countdown > 0 ? ` (${countdown})` : ''}
+        </Button>
+      </div>
+      <div className="mt-3 h-1 overflow-hidden rounded-full bg-white/10">
+        <div
+          className="h-full gradient-primary rounded-full transition-all duration-1000"
+          style={{ width: `${(countdown / 5) * 100}%` }}
+        />
+      </div>
+      <p className="mt-2 text-[11px] text-muted-foreground">
+        {countdown > 0 ? `Starting in ${countdown} second${countdown === 1 ? '' : 's'}…` : 'Starting…'}
+      </p>
+    </div>
+  )
+}
 
 function RelatedVideoCard({ video }: { video: import('@/types').VideoCardData }) {
   return (
@@ -79,6 +144,9 @@ function RelatedVideoCard({ video }: { video: import('@/types').VideoCardData })
 export default function WatchPage({ params }: PageProps) {
   const { videoId } = use(params)
   const router = useRouter()
+  // Which video the ended-overlay belongs to — stale values can never
+  // match a new videoId, so no reset effects are needed on navigation.
+  const [endedFor, setEndedFor] = useState<string | null>(null)
   const goBack = () => {
     if (window.history.length > 1) router.back()
     else router.push('/home')
@@ -133,6 +201,13 @@ export default function WatchPage({ params }: PageProps) {
 
   const video = real ?? mockVideo
   const related = relatedReal ?? MOCK_TRENDING.filter((v) => v.id !== video.id).slice(0, 8)
+
+  // Next-episode autoplay (series only): 5s countdown, cancellable.
+  const series = real?.series ?? null
+  const epIndex = series ? series.episodes.findIndex((e) => e.episodeNumber === series.currentEpisode) : -1
+  const prevEp = series && epIndex > 0 ? series.episodes[epIndex - 1] : null
+  const nextEp = series && epIndex >= 0 && epIndex < series.episodes.length - 1 ? series.episodes[epIndex + 1] : null
+  const showNext = endedFor === videoId && nextEp
 
   const [liked, setLiked] = useState(false)
   const [likeCount, setLikeCount] = useState<number | null>(null)
@@ -337,9 +412,78 @@ export default function WatchPage({ params }: PageProps) {
                     ? (q) => masterUrl.replace('/master.m3u8', `/${q}/playlist.m3u8`)
                     : undefined
                 }
+                onEnded={() => {
+                  if (nextEp) setEndedFor(videoId)
+                }}
               />
             )}
           </div>
+
+          {/* Series strip */}
+          {series && (
+            <div className="mb-5 glass rounded-xl p-4">
+              <Link
+                href={`/series/${series.slug}`}
+                className="mb-3 inline-block text-sm font-bold hover:text-cyan transition-colors"
+              >
+                {series.title}
+              </Link>
+              <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+                {series.episodes.map((e) => {
+                  const isCurrent = e.episodeNumber === series.currentEpisode
+                  return (
+                    <Link
+                      key={e.videoId}
+                      href={e.href}
+                      aria-current={isCurrent ? 'page' : undefined}
+                      aria-label={`Episode ${e.episodeNumber}${isCurrent ? ' (current)' : ''}`}
+                      className={`flex h-10 min-w-10 items-center justify-center rounded-lg px-2 text-xs font-bold tabular-nums transition-all ${
+                        isCurrent
+                          ? 'gradient-primary text-white'
+                          : 'border border-white/10 bg-white/5 text-muted-foreground hover:text-foreground hover:border-white/25'
+                      }`}
+                    >
+                      {isCurrent ? '✓' : String(e.episodeNumber).padStart(2, '0')}
+                    </Link>
+                  )
+                })}
+              </div>
+              <div className="mt-3 flex gap-2">
+                {prevEp ? (
+                  <Link href={prevEp.href} className="flex-1">
+                    <Button variant="outline" size="sm" className="w-full gap-1.5">
+                      ← Previous Episode
+                    </Button>
+                  </Link>
+                ) : (
+                  <Button variant="outline" size="sm" className="flex-1 gap-1.5 opacity-40" disabled>
+                    ← Previous Episode
+                  </Button>
+                )}
+                {nextEp ? (
+                  <Link href={nextEp.href} className="flex-1">
+                    <Button size="sm" className="w-full gap-1.5">
+                      Next Episode →
+                    </Button>
+                  </Link>
+                ) : (
+                  <Button size="sm" className="flex-1 gap-1.5 opacity-40" disabled>
+                    Next Episode →
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Next episode autoplay card */}
+          {showNext && nextEp && (
+            <NextUpCard
+              key={nextEp.videoId}
+              next={nextEp}
+              seriesTitle={series?.title ?? ''}
+              onCancel={() => setEndedFor(null)}
+            />
+          )}
 
           {/* Title */}
           <h1 className="text-xl sm:text-2xl font-bold leading-tight mb-3">{video.title}</h1>

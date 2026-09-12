@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/db/prisma'
 import { verifySession } from '@/lib/auth/dal'
+import { resolveVideoId } from '@/lib/series'
 import { checkRateLimit, rateLimitedResponse } from '@/lib/rate-limit'
 
 type Ctx = { params: Promise<Record<string, string>> }
 
-async function getVideoOr404(videoId: string) {
+async function getVideoOr404(ref: string) {
+  const videoId = await resolveVideoId(ref)
+  if (!videoId) return null
   return prisma.video.findFirst({
     where: { id: videoId, status: 'PUBLISHED', deletedAt: null, isCommentable: true },
     select: { id: true },

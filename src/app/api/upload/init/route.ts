@@ -9,6 +9,9 @@ const bodySchema = z.object({
   description: z.string().max(2000).optional(),
   categorySlugs: z.array(z.string().min(1).max(60)).max(5).optional(),
   tags: z.array(z.string().min(1).max(50)).max(10).optional(),
+  seriesSlug: z.string().min(1).max(80).optional(),
+  episodeNumber: z.number().int().min(1).max(10000).optional(),
+  episodeTitle: z.string().min(1).max(120).optional(),
 })
 
 /**
@@ -66,6 +69,35 @@ export async function POST(req: NextRequest) {
     },
     select: { id: true },
   })
+
+  // Optional series-episode link (visible only once the video publishes).
+  if (parsed.data.seriesSlug) {
+    const series = await prisma.series.findUnique({
+      where: { slug: parsed.data.seriesSlug },
+      select: { id: true },
+    })
+    if (!series) {
+      await prisma.video.delete({ where: { id: video.id } })
+      return Response.json({ error: 'Series not found.' }, { status: 404 })
+    }
+    const episodeNumber = parsed.data.episodeNumber ?? 1
+    const taken = await prisma.episode.findUnique({
+      where: { seriesId_episodeNumber: { seriesId: series.id, episodeNumber } },
+      select: { id: true },
+    })
+    if (taken) {
+      await prisma.video.delete({ where: { id: video.id } })
+      return Response.json({ error: `Episode ${episodeNumber} already exists in this series.` }, { status: 409 })
+    }
+    await prisma.episode.create({
+      data: {
+        seriesId: series.id,
+        videoId: video.id,
+        episodeNumber,
+        title: parsed.data.episodeTitle?.trim() || `Episode ${String(episodeNumber).padStart(2, '0')}`,
+      },
+    })
+  }
 
   // Link categories that exist; upsert tags (slugified) and link them.
   const { categorySlugs = [], tags = [] } = parsed.data

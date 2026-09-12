@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/db/prisma'
 import { verifySession } from '@/lib/auth/dal'
+import { resolveVideoId } from '@/lib/series'
 import { signPlaybackToken, STREAM_TOKEN_TTL_SECONDS } from '@/lib/playback/token'
 import { masterPlaylistUrl, requestOrigin } from '@/lib/playback/manifest'
 import { checkRateLimit, rateLimitedResponse } from '@/lib/rate-limit'
@@ -23,8 +24,11 @@ export async function POST(req: NextRequest) {
   const parsed = bodySchema.safeParse(await req.json().catch(() => ({})))
   if (!parsed.success) return Response.json({ error: 'videoId is required.' }, { status: 400 })
 
+  const videoId = await resolveVideoId(parsed.data.videoId)
+  if (!videoId) return Response.json({ error: 'Video not found.' }, { status: 404 })
+
   const video = await prisma.video.findFirst({
-    where: { id: parsed.data.videoId, status: 'PUBLISHED', deletedAt: null },
+    where: { id: videoId, status: 'PUBLISHED', deletedAt: null },
     select: { id: true },
   })
   if (!video) return Response.json({ error: 'Video not found.' }, { status: 404 })

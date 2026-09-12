@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Users, Video, Flag, BadgeCheck,
-  FileText, BarChart2, Settings, ClipboardList, Copyright, LayoutGrid
+  FileText, BarChart2, Settings, ClipboardList, Copyright, LayoutGrid, Layers
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Logo } from '@/components/brand/logo'
@@ -13,6 +13,7 @@ const NAV = [
   { href: '/admin/users', label: 'Users', icon: Users },
   { href: '/admin/creators', label: 'Creator Verification', icon: BadgeCheck },
   { href: '/admin/videos', label: 'Video Moderation', icon: Video },
+  { href: '/admin/series', label: 'Series', icon: Layers },
   { href: '/admin/categories', label: 'Categories & Covers', icon: LayoutGrid },
   { href: '/admin/reports', label: 'Reports', icon: Flag },
   { href: '/admin/copyright', label: 'Copyright', icon: Copyright },

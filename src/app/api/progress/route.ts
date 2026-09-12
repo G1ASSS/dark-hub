@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/db/prisma'
 import { verifySession } from '@/lib/auth/dal'
+import { resolveVideoId } from '@/lib/series'
 import { toVideoCardData, catalogSelect } from '@/lib/videos/serialize'
 
 const postSchema = z.object({
@@ -17,8 +18,10 @@ export async function POST(req: NextRequest) {
 
   const parsed = postSchema.safeParse(await req.json().catch(() => ({})))
   if (!parsed.success) return NextResponse.json({ error: 'Invalid body.' }, { status: 400 })
-  const { videoId, duration } = parsed.data
+  const { videoId: videoRef, duration } = parsed.data
   const position = Math.min(parsed.data.position, duration)
+  const videoId = await resolveVideoId(videoRef)
+  if (!videoId) return NextResponse.json({ error: 'Video not found.' }, { status: 404 })
 
   const video = await prisma.video.findFirst({
     where: { id: videoId, status: 'PUBLISHED', deletedAt: null },
@@ -50,7 +53,17 @@ export async function GET() {
       position: true,
       duration: true,
       updatedAt: true,
-      video: { select: catalogSelect },
+      video: {
+        select: {
+          ...catalogSelect,
+          episode: {
+            select: {
+              episodeNumber: true,
+              series: { select: { title: true, slug: true } },
+            },
+          },
+        },
+      },
     },
   })
 
@@ -61,6 +74,13 @@ export async function GET() {
       position: r.position,
       duration: r.duration,
       updatedAt: r.updatedAt.toISOString(),
+      series: r.video.episode
+        ? {
+            title: r.video.episode.series.title,
+            slug: r.video.episode.series.slug,
+            episodeNumber: r.video.episode.episodeNumber,
+          }
+        : null,
     }))
   return NextResponse.json({ data })
 }

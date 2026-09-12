@@ -5,6 +5,7 @@ import { verifySession } from '@/lib/auth/dal'
 import { signPlaybackToken, DOWNLOAD_TOKEN_TTL_SECONDS } from '@/lib/playback/token'
 import { checkDownloadAllowed } from '@/lib/subscriptions/access'
 import { requestOrigin } from '@/lib/playback/manifest'
+import { resolveVideoId } from '@/lib/series'
 import { checkRateLimit, rateLimitedResponse } from '@/lib/rate-limit'
 
 const bodySchema = z.object({ videoId: z.string().min(1), quality: z.string().min(1) })
@@ -24,7 +25,9 @@ export async function POST(req: NextRequest) {
 
   const parsed = bodySchema.safeParse(await req.json().catch(() => ({})))
   if (!parsed.success) return Response.json({ error: 'videoId and quality are required.' }, { status: 400 })
-  const { videoId, quality } = parsed.data
+  const { quality } = parsed.data
+  const videoId = await resolveVideoId(parsed.data.videoId)
+  if (!videoId) return Response.json({ error: 'Video not found.' }, { status: 404 })
 
   const video = await prisma.video.findFirst({
     where: { id: videoId, status: 'PUBLISHED', deletedAt: null },

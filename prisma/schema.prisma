@@ -237,12 +237,14 @@ model Video {
   isCommentable Boolean       @default(true)
   publishedAt   DateTime?
   processingStartedAt DateTime?
+  slug        String?       @unique
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   deletedAt     DateTime?
   creator       Creator       @relation(fields: [creatorId], references: [id], onDelete: Cascade)
   assets        VideoAsset[]
   qualities     VideoQuality[]
+  episode       Episode?
   categories    VideoCategory[]
   tags          VideoTag[]
   favorites     Favorite[]
@@ -259,6 +261,7 @@ model Video {
   @@index([publishedAt])
   @@index([views])
   @@index([createdAt])
+  @@index([slug])
 }
 
 model VideoAsset {
@@ -575,4 +578,43 @@ model Download {
   @@index([userId])
   @@index([userId, createdAt])
   @@index([videoId])
+}
+
+enum SeriesStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model Series {
+  id          String       @id @default(cuid())
+  title       String
+  slug        String       @unique
+  description String?
+  thumbnail   String?
+  coverImage  String?
+  status      SeriesStatus @default(DRAFT)
+  sortOrder   Int          @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  episodes    Episode[]
+
+  @@index([slug])
+  @@index([status])
+}
+
+model Episode {
+  id            String   @id @default(cuid())
+  seriesId      String
+  videoId       String   @unique
+  episodeNumber Int
+  title         String
+  description   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  series        Series   @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  video         Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([seriesId, episodeNumber])
+  @@index([seriesId, episodeNumber])
 }

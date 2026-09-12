@@ -8,6 +8,7 @@ import { getStorageProvider } from '@/lib/storage'
 import { getScanner } from './scan'
 import { warmVideoCache } from '@/lib/cache/origin'
 import { hotPut } from '@/lib/cache/supabase-hot'
+import { videoSlugFor } from '@/lib/slugs'
 import { probe, ladderForSource, transcodeMp4, segmentHls, probeDuration, extractThumbnail } from './ffmpeg'
 
 export type ProcessResult = {
@@ -253,6 +254,7 @@ export async function processVideo(videoId: string): Promise<ProcessResult> {
         duration: Math.round(source.duration),
         status: 'PENDING_REVIEW',
         processingStartedAt: null,
+        slug: videoSlugFor(video.title, videoId),
         ...(thumbnailUrl ? { thumbnailUrl } : {}),
       },
     })
