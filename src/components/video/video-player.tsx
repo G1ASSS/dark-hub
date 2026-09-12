@@ -46,6 +46,9 @@ export function VideoPlayer({ src, poster, title, videoId }: VideoPlayerProps) {
   const [settingsTab, setSettingsTab] = useState<'quality' | 'speed'>('quality')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
+  const [ripple, setRipple] = useState<{ side: 'left' | 'right'; n: number } | null>(null)
+  const clickRef = useRef<{ t: number; x: number } | null>(null)
+  const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Load HLS
   useEffect(() => {
@@ -181,6 +184,44 @@ export function VideoPlayer({ src, poster, title, videoId }: VideoPlayerProps) {
     if (videoRef.current) videoRef.current.currentTime = Math.max(0, Math.min(duration, currentTime + secs))
   }
 
+  const flashRipple = (side: 'left' | 'right') => {
+    setRipple((r) => ({ side, n: (r?.n ?? 0) + 1 }))
+    setTimeout(() => setRipple(null), 650)
+  }
+
+  /**
+   * Smart stage tap: single = play/pause, double on the left/right
+   * thirds = skip ∓5s with a ripple. The second tap cancels the pending
+   * single-tap toggle so doubles never stutter.
+   */
+  const handleStageClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = (e.clientX - rect.left) / rect.width
+    const now = Date.now()
+    const prev = clickRef.current
+    if (prev && now - prev.t < 300) {
+      if (clickTimer.current) clearTimeout(clickTimer.current)
+      clickRef.current = null
+      const side: 'left' | 'right' = x < 0.4 ? 'left' : x > 0.6 ? 'right' : prev.x < 0.5 ? 'left' : 'right'
+      skip(side === 'left' ? -5 : 5)
+      flashRipple(side)
+      showControlsTemporarily()
+      return
+    }
+    clickRef.current = { t: now, x }
+    if (clickTimer.current) clearTimeout(clickTimer.current)
+    if (x >= 0.4 && x <= 0.6) {
+      // Middle single tap toggles immediately (no double-tap action there)
+      clickRef.current = null
+      togglePlay()
+      return
+    }
+    clickTimer.current = setTimeout(() => {
+      clickRef.current = null
+      togglePlay()
+    }, 300)
+  }
+
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0
   const bufferProgress = duration > 0 ? (buffered / duration) * 100 : 0
 
@@ -190,7 +231,7 @@ export function VideoPlayer({ src, poster, title, videoId }: VideoPlayerProps) {
       className={`relative group bg-black w-full aspect-video select-none outline-none ${fullscreen ? 'rounded-none' : 'rounded-xl'}`}
       onMouseMove={showControlsTemporarily}
       onMouseLeave={() => playing && setShowControls(false)}
-      onClick={togglePlay}
+      onClick={handleStageClick}
       tabIndex={0}
       role="application"
       aria-label={title ?? 'Video player'}
@@ -210,19 +251,34 @@ export function VideoPlayer({ src, poster, title, videoId }: VideoPlayerProps) {
         </div>
       )}
       {!playing && !loading && !error && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="flex h-20 w-20 items-center justify-center rounded-full gradient-primary shadow-xl shadow-violet-500/30 opacity-90">
-            <Play className="h-8 w-8 text-white ml-1" fill="white" />
+        <button
+          onClick={(e) => { e.stopPropagation(); togglePlay() }}
+          aria-label="Play"
+          className="absolute inset-0 m-auto flex h-20 w-20 items-center justify-center rounded-full gradient-primary shadow-xl shadow-violet-500/30 opacity-90 transition-transform duration-150 hover:scale-105 active:scale-95 cursor-pointer"
+        >
+          <Play className="h-8 w-8 text-white ml-1" fill="white" />
+        </button>
+      )}
+
+      {/* Double-tap skip ripples */}
+      {ripple && (
+        <div
+          key={ripple.n}
+          className={`absolute top-1/2 -translate-y-1/2 pointer-events-none ${ripple.side === 'left' ? 'left-8' : 'right-8'}`}
+          aria-hidden="true"
+        >
+          <div className="skip-ripple flex h-16 w-16 flex-col items-center justify-center rounded-full bg-black/60 backdrop-blur-sm">
+            {ripple.side === 'left' ? <RotateCcw className="h-5 w-5 text-white" /> : <RotateCw className="h-5 w-5 text-white" />}
+            <span className="text-[11px] font-bold text-white">5</span>
           </div>
         </div>
       )}
 
       <div
-        className={`absolute inset-0 flex flex-col justify-end transition-opacity duration-300 ${showControls || !playing ? 'opacity-100' : 'opacity-0'}`}
-        onClick={(e) => e.stopPropagation()}
+        className={`absolute inset-0 flex flex-col justify-end pointer-events-none transition-opacity duration-300 ${showControls || !playing ? 'opacity-100' : 'opacity-0'}`}
       >
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
-        <div className="relative px-4 pb-3 space-y-2">
+        <div className="relative px-4 pb-3 space-y-2 pointer-events-auto" onClick={(e) => e.stopPropagation()}>
           {/* Progress */}
           <div
             className="group/prog h-1 hover:h-2 bg-white/20 rounded-full cursor-pointer transition-all duration-150 relative"

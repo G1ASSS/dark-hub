@@ -292,12 +292,12 @@ export default function WatchPage({ params }: PageProps) {
         {/* ── Left: Player + info ────────────────────────── */}
         <div className="min-w-0">
 
-          {/* Video Player */}
-          <div className="relative rounded-2xl overflow-hidden bg-black mb-5">
+          {/* Back */}
+          <div className="mb-4">
             <button
               onClick={goBack}
               aria-label="Go back"
-              className="group absolute left-3 top-3 z-20 flex h-10 w-10 items-center justify-center rounded-full transition-all duration-200 hover:scale-105 active:scale-95"
+              className="group flex items-center gap-2 rounded-full py-2 pl-3 pr-4 transition-all duration-200 hover:scale-[1.03] active:scale-95"
               style={{
                 background: 'linear-gradient(135deg, rgba(255,255,255,0.14), rgba(255,255,255,0.06))',
                 backdropFilter: 'blur(28px) saturate(180%) brightness(1.12)',
@@ -305,8 +305,13 @@ export default function WatchPage({ params }: PageProps) {
                 boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.35), 0 0 0 0.5px rgba(255,255,255,0.16), 0 8px 24px rgba(0,0,0,0.45)',
               }}
             >
-              <ArrowLeft className="h-5 w-5 text-white/85 transition-transform duration-200 group-hover:-translate-x-0.5" />
+              <ArrowLeft className="h-4 w-4 text-white/85 transition-transform duration-200 group-hover:-translate-x-0.5" />
+              <span className="text-sm font-semibold text-white/85">Back</span>
             </button>
+          </div>
+
+          {/* Video Player */}
+          <div className="rounded-2xl overflow-hidden bg-black mb-5">
             {real && tokenDenied && !masterUrl ? (
               <div className="flex flex-col items-center justify-center gap-3 px-6 py-20 text-center">
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl gradient-primary">
