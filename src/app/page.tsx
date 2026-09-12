@@ -5,13 +5,39 @@ import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import {
-  Play, Shield, Lock, Eye, Star, Zap, ChevronRight,
+  Play, Shield, Lock, Eye, Star, Zap, ChevronRight, ChevronDown,
   CheckCircle2, Sparkles, Film, Crown, Flame
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AgeGate } from '@/components/auth/age-gate'
 import { formatViews } from '@/lib/utils'
 import type { VideoCardData } from '@/types'
+
+function formatCompact(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
+  return `${n}`
+}
+
+/** Animated count-up for stat chips. */
+function CountUp({ value }: { value: number | undefined }) {
+  const [display, setDisplay] = useState(0)
+  const raf = useRef(0)
+  useEffect(() => {
+    if (value === undefined) return
+    const start = performance.now()
+    const dur = 1200
+    const tick = (t: number) => {
+      const p = Math.min(1, (t - start) / dur)
+      setDisplay(Math.round(value * (1 - Math.pow(1 - p, 3))))
+      if (p < 1) raf.current = requestAnimationFrame(tick)
+    }
+    raf.current = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf.current)
+  }, [value])
+  if (value === undefined) return <>…</>
+  return <>{formatCompact(display)}</>
+}
 
 const FEATURES = [
   { icon: Shield, title: 'Verified Legal Content', desc: 'All content is rights-owned, consensual, and legally compliant.' },
@@ -83,20 +109,37 @@ function LandingInner() {
             Premium adult streaming · 18+ only
           </div>
 
-          <h1 className="mb-5 text-5xl font-bold leading-[1.08] tracking-tight sm:text-6xl lg:text-7xl">
+          <motion.h1
+            initial={{ opacity: 0, y: 26 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.65, delay: 0.1, ease: 'easeOut' }}
+            className="mb-5 text-5xl font-bold leading-[1.08] tracking-tight sm:text-6xl lg:text-7xl"
+          >
             Premium Content,
             <br />
-            <span className="gradient-text">Beautifully Delivered</span>
-          </h1>
+            <motion.span
+              initial={{ opacity: 0, y: 26 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.65, delay: 0.24, ease: 'easeOut' }}
+              className="gradient-text animate-gradient-x inline-block"
+            >
+              Beautifully Delivered
+            </motion.span>
+          </motion.h1>
 
           <p className="mx-auto mb-8 max-w-xl text-lg text-muted-foreground leading-relaxed">
             Dark Hubb is a curated, private streaming platform for adults.
             Cinematic quality, seamless playback, and total privacy.
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.38, ease: 'easeOut' }}
+            className="flex flex-col sm:flex-row items-center justify-center gap-3"
+          >
             <Link href="/home">
-              <Button size="xl" className="gap-2 animate-pulse-glow">
+              <Button size="xl" className="gap-2 btn-shine animate-pulse-glow">
                 <Play className="h-5 w-5" fill="white" />
                 Start Browsing
               </Button>
@@ -104,10 +147,15 @@ function LandingInner() {
             <Link href="/login">
               <Button variant="glass" size="xl">Sign In</Button>
             </Link>
-          </div>
+          </motion.div>
 
           {/* Live stats */}
-          <div className="mt-10 flex items-center justify-center gap-3 flex-wrap">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.5, ease: 'easeOut' }}
+            className="mt-10 flex items-center justify-center gap-3 flex-wrap"
+          >
             {[
               { label: 'videos', value: stats?.videos },
               { label: 'creators', value: stats?.creators },
@@ -115,14 +163,48 @@ function LandingInner() {
             ].map((s) => (
               <div key={s.label} className="glass rounded-2xl px-5 py-3 min-w-[110px]">
                 <div className="text-xl font-bold tabular-nums">
-                  {s.value === undefined ? '…' : s.value >= 1000 ? `${(s.value / 1000).toFixed(1)}K` : s.value}
+                  <CountUp value={s.value} />
                 </div>
                 <div className="text-[11px] text-muted-foreground uppercase tracking-wider">{s.label}</div>
               </div>
             ))}
-          </div>
+          </motion.div>
+
+          {/* Scroll cue */}
+          <motion.div
+            animate={{ y: [0, 8, 0] }}
+            transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+            className="absolute bottom-6 left-1/2 -translate-x-1/2 text-white/30"
+            aria-hidden="true"
+          >
+            <ChevronDown className="h-6 w-6" />
+          </motion.div>
         </motion.div>
       </section>
+
+      {/* ── Poster marquee (real catalog in motion) ──────── */}
+      {trending.length > 1 && (
+        <section aria-label="Fresh posters" className="marquee-hover overflow-hidden py-6 border-y border-white/5">
+          <div className="animate-marquee flex w-max gap-4">
+            {[...trending, ...trending].map((v, i) => (
+              <Link key={`${v.id}-${i}`} href={`/watch/${v.id}`} className="group relative block w-56 sm:w-64 shrink-0 overflow-hidden rounded-2xl" aria-hidden={i >= trending.length}>
+                <div className="relative aspect-video">
+                  <Image
+                    src={v.thumbnailUrl}
+                    alt=""
+                    fill
+                    className="object-cover transition-transform duration-500 group-hover:scale-105"
+                    sizes="256px"
+                    unoptimized
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
+                  <p className="absolute bottom-2 left-3 right-3 truncate text-xs font-semibold">{v.title}</p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ── Trending rail (real catalog) ─────────────────── */}
       {trending.length > 0 && (

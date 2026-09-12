@@ -136,6 +136,23 @@ h1, h2, h3, h4, h5, h6 {
 .animate-scale-in   { animation: scaleIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) both; }
 .animate-float      { animation: float 6s ease-in-out infinite; }
 .animate-pulse-glow { animation: pulseGlow 2.5s ease-in-out infinite; }
+.animate-kenburns   { animation: kenburns 26s ease-in-out infinite alternate; }
+.animate-marquee    { animation: marquee 42s linear infinite; }
+.marquee-hover:hover .animate-marquee { animation-play-state: paused; }
+.animate-pulse-ring { animation: pulseRing 2.8s ease-out infinite; }
+.animate-gradient-x { background-size: 200% auto !important; animation: gradientShift 5s ease infinite; }
+
+/* Shine sweep for primary buttons */
+.btn-shine { position: relative; overflow: hidden; isolation: isolate; }
+.btn-shine::after {
+  content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,0.35) 50%, transparent 70%);
+  transform: translateX(-130%);
+  animation: shine 3.4s ease-in-out infinite;
+}
+
+/* Animated SVG check draw */
+.check-draw { stroke-dasharray: 26; stroke-dashoffset: 26; animation: drawCheck 0.32s ease-out 0.05s forwards; }
 
 @keyframes fadeIn {
   from { opacity: 0; }
@@ -165,6 +182,26 @@ h1, h2, h3, h4, h5, h6 {
   0%   { background-position: 0% 50%; }
   50%  { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
+}
+@keyframes kenburns {
+  from { transform: scale(1) translate(0, 0); }
+  to   { transform: scale(1.14) translate(-1.5%, 1.5%); }
+}
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+@keyframes shine {
+  0%, 55%  { transform: translateX(-130%); }
+  100%     { transform: translateX(130%); }
+}
+@keyframes pulseRing {
+  0%   { box-shadow: 0 8px 24px rgba(100,60,220,0.4), 0 0 0 0 rgba(125,80,240,0.45); }
+  70%  { box-shadow: 0 8px 24px rgba(100,60,220,0.4), 0 0 0 18px rgba(125,80,240,0); }
+  100% { box-shadow: 0 8px 24px rgba(100,60,220,0.4), 0 0 0 0 rgba(125,80,240,0); }
+}
+@keyframes drawCheck {
+  to { stroke-dashoffset: 0; }
 }
 
 /* ── Skeleton ───────────────────────────────────────────── */
