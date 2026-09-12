@@ -54,28 +54,56 @@ export default function HomePage() {
   const empty = !loading && (trending ?? []).length === 0 && (fresh ?? []).length === 0
   const browse = fresh ?? []
 
-  // Hero autoplay
+  // Hero autoplay — programmatic scrolls are flagged so the scroll
+  // handler ignores them; manual swipes pause autoplay for 10s.
+  const autoScrolling = useRef(false)
+  const lastInteract = useRef(0)
+
   useEffect(() => {
     if (hero.length < 2) return
-    const t = setInterval(() => setHeroIdx((i) => (i + 1) % hero.length), 3000)
+    const t = setInterval(() => {
+      if (Date.now() - lastInteract.current < 10000) return
+      setHeroIdx((i) => (i + 1) % hero.length)
+    }, 3000)
     return () => clearInterval(t)
   }, [hero.length])
 
-  useEffect(() => {
+  const scrollToHero = (idx: number) => {
     const el = heroRef.current
-    const card = el?.firstElementChild as HTMLElement | null
-    if (!el || !card) return
-    const target = heroIdx * (card.offsetWidth + 12)
-    if (Math.abs(el.scrollLeft - target) > 4) {
-      el.scrollTo({ left: target, behavior: 'smooth' })
-    }
+    const child = el?.children[idx] as HTMLElement | undefined
+    if (!el || !child) return
+    // Center the card (matches snap-center alignment exactly)
+    const target = child.offsetLeft - (el.clientWidth - child.clientWidth) / 2
+    autoScrolling.current = true
+    el.scrollTo({ left: target, behavior: 'smooth' })
+    setTimeout(() => {
+      autoScrolling.current = false
+    }, 650)
+  }
+
+  useEffect(() => {
+    scrollToHero(heroIdx)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [heroIdx])
 
   const onHeroScroll = () => {
+    if (autoScrolling.current) return
     const el = heroRef.current
-    const card = el?.firstElementChild as HTMLElement | null
-    if (!el || !card) return
-    setHeroIdx(Math.round(el.scrollLeft / (card.offsetWidth + 12)) % Math.max(hero.length, 1))
+    if (!el) return
+    lastInteract.current = Date.now()
+    // Nearest card to the snap-centered position
+    const center = el.scrollLeft + el.clientWidth / 2
+    let best = 0
+    let bestDist = Infinity
+    for (let i = 0; i < el.children.length; i++) {
+      const child = el.children[i] as HTMLElement
+      const dist = Math.abs(child.offsetLeft + child.clientWidth / 2 - center)
+      if (dist < bestDist) {
+        bestDist = dist
+        best = i
+      }
+    }
+    setHeroIdx((prev) => (prev === best ? prev : best))
   }
 
   return (
