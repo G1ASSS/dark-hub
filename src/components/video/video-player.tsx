@@ -46,6 +46,11 @@ export function VideoPlayer({ src, poster, title, videoId }: VideoPlayerProps) {
   const [settingsTab, setSettingsTab] = useState<'quality' | 'speed'>('quality')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
+  // iOS ignores JS volume control entirely — physical buttons rule there,
+  // so the on-screen slider/mute would be dead UI. Hide them on iOS.
+  const [canControlVolume] = useState(
+    () => typeof navigator === 'undefined' || !/iPhone|iPad|iPod/.test(navigator.userAgent)
+  )
   const [ripple, setRipple] = useState<{ side: 'left' | 'right'; n: number } | null>(null)
   const clickRef = useRef<{ t: number; x: number } | null>(null)
   const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -301,14 +306,16 @@ export function VideoPlayer({ src, poster, title, videoId }: VideoPlayerProps) {
             <button onClick={() => skip(10)} className="text-white/70 hover:text-white transition-colors" aria-label="Forward 10s">
               <RotateCw className="h-4 w-4" />
             </button>
-            <div className="flex items-center gap-2">
-              <button onClick={toggleMute} className="text-white hover:text-violet-300 transition-colors" aria-label={muted ? 'Unmute' : 'Mute'}>
-                {muted || volume === 0 ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
-              </button>
-              <input type="range" min={0} max={1} step={0.05} value={muted ? 0 : volume} onChange={handleVolume}
-                className="w-20 h-1 appearance-none bg-white/30 rounded-full cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white"
-                aria-label="Volume" />
-            </div>
+            {canControlVolume && (
+              <div className="flex items-center gap-2">
+                <button onClick={toggleMute} className="text-white hover:text-violet-300 transition-colors" aria-label={muted ? 'Unmute' : 'Mute'}>
+                  {muted || volume === 0 ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+                </button>
+                <input type="range" min={0} max={1} step={0.05} value={muted ? 0 : volume} onChange={handleVolume}
+                  className="w-20 h-1 appearance-none bg-white/30 rounded-full cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white"
+                  aria-label="Volume" />
+              </div>
+            )}
             <span className="text-xs text-white/80 font-mono tabular-nums">{formatTime(currentTime)} / {formatTime(duration)}</span>
             <div className="flex-1" />
             {speed !== 1 && <span className="text-xs text-violet-300 font-medium">{speed}x</span>}
