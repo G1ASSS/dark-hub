@@ -10,33 +10,17 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AgeGate } from '@/components/auth/age-gate'
+import { CountUp } from '@/components/ui/count-up'
 import { formatViews } from '@/lib/utils'
 import type { VideoCardData } from '@/types'
 
-function formatCompact(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
-  return `${n}`
-}
-
 /** Animated count-up for stat chips. */
-function CountUp({ value }: { value: number | undefined }) {
-  const [display, setDisplay] = useState(0)
-  const raf = useRef(0)
-  useEffect(() => {
-    if (value === undefined) return
-    const start = performance.now()
-    const dur = 1200
-    const tick = (t: number) => {
-      const p = Math.min(1, (t - start) / dur)
-      setDisplay(Math.round(value * (1 - Math.pow(1 - p, 3))))
-      if (p < 1) raf.current = requestAnimationFrame(tick)
-    }
-    raf.current = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf.current)
-  }, [value])
-  if (value === undefined) return <>…</>
-  return <>{formatCompact(display)}</>
+function StatCount({ value }: { value: number | undefined }) {
+  return (
+    <span className="tabular-nums">
+      <CountUp value={value} compact />
+    </span>
+  )
 }
 
 function LandingInner() {
@@ -197,7 +181,7 @@ function LandingInner() {
             ].map((s) => (
               <div key={s.label} className="glass rounded-2xl px-5 py-3 min-w-[110px]">
                 <div className="text-xl font-bold tabular-nums">
-                  <CountUp value={s.value} />
+                  <StatCount value={s.value} />
                 </div>
                 <div className="text-[11px] text-muted-foreground uppercase tracking-wider">{s.label}</div>
               </div>
