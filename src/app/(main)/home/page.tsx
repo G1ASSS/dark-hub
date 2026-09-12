@@ -341,7 +341,7 @@ export default function HomePage() {
               </Link>
             </div>
             {loading ? (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                 {[0, 1, 2, 3].map((i) => (
                   <div key={i} className="rounded-2xl overflow-hidden">
                     <div className="skeleton aspect-video" />
@@ -353,7 +353,7 @@ export default function HomePage() {
                 ))}
               </div>
             ) : browse.length > 0 ? (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                 {browse.map((v) => (
                   <Link key={v.id} href={`/watch/${v.id}`} className="group rounded-2xl overflow-hidden">
                     <div className="relative aspect-video">
