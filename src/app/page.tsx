@@ -43,7 +43,10 @@ function LandingInner() {
   const [ageVerified, setAgeVerified] = useState(false)
   const [stats, setStats] = useState<{ videos: number; creators: number; views: number } | null>(null)
   const [trending, setTrending] = useState<VideoCardData[]>([])
-  const railRef = useRef<HTMLDivElement>(null)
+  const [trendIdx, setTrendIdx] = useState(0)
+  const trendRef = useRef<HTMLDivElement>(null)
+  const trendAuto = useRef(false)
+  const trendTouched = useRef(0)
   const router = useRouter()
   const params = useSearchParams()
   const redirectTarget = params.get('redirect')
@@ -55,6 +58,46 @@ function LandingInner() {
       .then((d) => setTrending(d.data ?? []))
       .catch(() => {})
   }, [])
+
+  // Trending auto-rail (mirrors the home hero treatment)
+  useEffect(() => {
+    if (trending.length < 2) return
+    const t = setInterval(() => {
+      if (Date.now() - trendTouched.current < 10000) return
+      setTrendIdx((i) => (i + 1) % trending.length)
+    }, 4000)
+    return () => clearInterval(t)
+  }, [trending.length])
+
+  useEffect(() => {
+    const el = trendRef.current
+    const child = el?.children[trendIdx] as HTMLElement | undefined
+    if (!el || !child) return
+    trendAuto.current = true
+    el.scrollTo({ left: Math.max(child.offsetLeft - 16, 0), behavior: 'smooth' })
+    const timer = setTimeout(() => {
+      trendAuto.current = false
+    }, 650)
+    return () => clearTimeout(timer)
+  }, [trendIdx])
+
+  const onTrendScroll = () => {
+    if (trendAuto.current) return
+    const el = trendRef.current
+    if (!el || el.children.length === 0) return
+    trendTouched.current = Date.now()
+    let best = 0
+    let bestDist = Infinity
+    for (let i = 0; i < el.children.length; i++) {
+      const child = el.children[i] as HTMLElement
+      const dist = Math.abs(child.offsetLeft - 16 - el.scrollLeft)
+      if (dist < bestDist) {
+        bestDist = dist
+        best = i
+      }
+    }
+    setTrendIdx((prev) => (prev === best ? prev : best))
+  }
 
   const confirm = () => {
     setAgeVerified(true)
@@ -197,7 +240,7 @@ function LandingInner() {
         </section>
       )}
 
-      {/* ── Trending rail (real catalog) ─────────────────── */}
+      {/* ── Trending rail (auto-advancing) ─────────────── */}
       {trending.length > 0 && (
         <section className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8 py-16">
           <div className="flex items-center justify-between mb-6">
@@ -209,19 +252,24 @@ function LandingInner() {
             </Link>
           </div>
           <div
-            ref={railRef}
-            className="flex gap-4 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0"
+            ref={trendRef}
+            onScroll={onTrendScroll}
+            className="flex gap-4 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 snap-x snap-mandatory"
             style={{ scrollbarWidth: 'none' }}
           >
             {trending.map((v) => (
-              <Link key={v.id} href={`/watch/${v.id}`} className="group shrink-0 w-64 sm:w-72">
+              <Link
+                key={v.id}
+                href={`/watch/${v.id}`}
+                className="group w-[78%] sm:w-[46%] lg:w-[31%] shrink-0 snap-start"
+              >
                 <div className="relative rounded-2xl overflow-hidden aspect-video mb-2.5">
                   <Image
                     src={v.thumbnailUrl}
                     alt={v.title}
                     fill
                     className="object-cover transition-transform duration-500 group-hover:scale-105"
-                    sizes="288px"
+                    sizes="(max-width: 640px) 78vw, (max-width: 1024px) 46vw, 31vw"
                     unoptimized
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
@@ -239,6 +287,18 @@ function LandingInner() {
               </Link>
             ))}
           </div>
+          {trending.length > 1 && (
+            <div className="flex justify-center gap-1.5 mt-4">
+              {trending.map((v, i) => (
+                <button
+                  key={v.id}
+                  onClick={() => setTrendIdx(i)}
+                  aria-label={`Go to slide ${i + 1}`}
+                  className={`h-1.5 rounded-full transition-all ${i === trendIdx % trending.length ? 'w-6 bg-white' : 'w-1.5 bg-white/25'}`}
+                />
+              ))}
+            </div>
+          )}
         </section>
       )}
 
