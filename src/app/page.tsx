@@ -5,8 +5,8 @@ import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import {
-  Play, Shield, Lock, Eye, Star, Zap, ChevronRight, ChevronDown,
-  CheckCircle2, Sparkles, Film, Crown, Flame
+  Play, Eye, Zap, ChevronRight, ChevronDown,
+  CheckCircle2, Crown, Flame
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AgeGate } from '@/components/auth/age-gate'
@@ -38,15 +38,6 @@ function CountUp({ value }: { value: number | undefined }) {
   if (value === undefined) return <>…</>
   return <>{formatCompact(display)}</>
 }
-
-const FEATURES = [
-  { icon: Shield, title: 'Verified Legal Content', desc: 'All content is rights-owned, consensual, and legally compliant.' },
-  { icon: Film, title: 'Cinematic Quality', desc: 'Adaptive HLS streaming with renditions up to 1080p.' },
-  { icon: Lock, title: 'Private & Secure', desc: 'Signed playback URLs, watermarked downloads, and a real audit trail.' },
-  { icon: Star, title: 'Curated Collection', desc: 'Human moderation before anything publishes — no spam.' },
-  { icon: Eye, title: 'Seamless Playback', desc: 'Origin-cached segments for instant start on any connection.' },
-  { icon: Sparkles, title: 'Premium Downloads', desc: 'Offline copies for members, with fair daily limits.' },
-]
 
 function LandingInner() {
   const [ageVerified, setAgeVerified] = useState(false)
@@ -250,35 +241,6 @@ function LandingInner() {
           </div>
         </section>
       )}
-
-      {/* ── Features ─────────────────────────────────────── */}
-      <section className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8 py-16 border-t border-white/5">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold mb-3">Why Dark Hubb?</h2>
-          <p className="text-muted-foreground">Built different. Built premium.</p>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {FEATURES.map((f) => {
-            const Icon = f.icon
-            return (
-              <motion.div
-                key={f.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.4 }}
-                className="glass rounded-2xl p-6 hover:border-white/12 transition-colors"
-              >
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-subtle mb-4">
-                  <Icon className="h-5 w-5 text-cyan" />
-                </div>
-                <h3 className="font-semibold mb-1.5">{f.title}</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">{f.desc}</p>
-              </motion.div>
-            )
-          })}
-        </div>
-      </section>
 
       {/* ── Premium band ─────────────────────────────────── */}
       <section className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8 py-16">
