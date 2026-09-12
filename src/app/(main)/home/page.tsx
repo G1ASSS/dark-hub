@@ -64,7 +64,7 @@ export default function HomePage() {
   // Hero autoplay
   useEffect(() => {
     if (hero.length < 2) return
-    const t = setInterval(() => setHeroIdx((i) => (i + 1) % hero.length), 6000)
+    const t = setInterval(() => setHeroIdx((i) => (i + 1) % hero.length), 3000)
     return () => clearInterval(t)
   }, [hero.length])
 
