@@ -331,6 +331,12 @@ export default function WatchPage({ params }: PageProps) {
                 poster={video.thumbnailUrl}
                 title={video.title}
                 videoId={real?.id}
+                qualities={real?.qualities ?? []}
+                getVariantUrl={
+                  masterUrl
+                    ? (q) => masterUrl.replace('/master.m3u8', `/${q}/playlist.m3u8`)
+                    : undefined
+                }
               />
             )}
           </div>

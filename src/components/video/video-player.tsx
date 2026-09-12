@@ -12,6 +12,10 @@ interface VideoPlayerProps {
   autoPlay?: boolean
   /** Real video id — when set, playback position is reported for Continue Watching. */
   videoId?: string
+  /** Rendition labels for native playback (iOS Safari has no hls.js levels). */
+  qualities?: string[]
+  /** Build the variant playlist URL for a rendition (same auth token). */
+  getVariantUrl?: (quality: string) => string
 }
 
 function formatTime(seconds: number): string {
@@ -22,10 +26,9 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
-const QUALITY_OPTIONS = ['Auto', '1080p', '720p', '480p', '360p']
 const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2]
 
-export function VideoPlayer({ src, poster, title, videoId }: VideoPlayerProps) {
+export function VideoPlayer({ src, poster, title, videoId, qualities = [], getVariantUrl }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -41,6 +44,8 @@ export function VideoPlayer({ src, poster, title, videoId }: VideoPlayerProps) {
   const [fullscreen, setFullscreen] = useState(false)
   const [showControls, setShowControls] = useState(true)
   const [quality, setQuality] = useState('Auto')
+  const [levels, setLevels] = useState<{ height: number; index: number }[]>([])
+  const pendingSeek = useRef<number | null>(null)
   const [speed, setSpeed] = useState(1)
   const [showSettings, setShowSettings] = useState(false)
   const [settingsTab, setSettingsTab] = useState<'quality' | 'speed'>('quality')
@@ -75,6 +80,14 @@ export function VideoPlayer({ src, poster, title, videoId }: VideoPlayerProps) {
                 console.error('[player] fatal HLS error:', data.details)
                 setError(true)
               }
+            })
+            hls.on(Hls.Events.MANIFEST_PARSED, (_event: unknown, data: { levels?: { height?: number }[] }) => {
+              if (destroyed) return
+              const lvls = (data.levels ?? [])
+                .map((l, index) => ({ height: l.height ?? 0, index }))
+                .filter((l) => l.height > 0)
+                .sort((a, b) => a.height - b.height)
+              setLevels(lvls)
             })
             hls.loadSource(src)
             hls.attachMedia(video)
@@ -124,7 +137,14 @@ export function VideoPlayer({ src, poster, title, videoId }: VideoPlayerProps) {
         setCurrentTime(v.currentTime)
         if (v.buffered.length > 0) setBuffered(v.buffered.end(v.buffered.length - 1))
       },
-      loadedmetadata: () => { setDuration(v.duration); setLoading(false) },
+      loadedmetadata: () => {
+        setDuration(v.duration)
+        setLoading(false)
+        if (pendingSeek.current !== null && Number.isFinite(pendingSeek.current)) {
+          v.currentTime = pendingSeek.current
+          pendingSeek.current = null
+        }
+      },
       waiting: () => setLoading(true),
       canplay: () => setLoading(false),
       error: () => setError(true),
@@ -142,9 +162,18 @@ export function VideoPlayer({ src, poster, title, videoId }: VideoPlayerProps) {
   }, [videoId])
 
   useEffect(() => {
-    const onFs = () => setFullscreen(!!document.fullscreenElement)
+    const doc = document as Document & { webkitFullscreenElement?: Element }
+    const onFs = () => setFullscreen(!!(doc.fullscreenElement || doc.webkitFullscreenElement))
+    const onEndNative = () => setFullscreen(false)
+    const v = videoRef.current
     document.addEventListener('fullscreenchange', onFs)
-    return () => document.removeEventListener('fullscreenchange', onFs)
+    document.addEventListener('webkitfullscreenchange', onFs)
+    v?.addEventListener('webkitendfullscreen', onEndNative)
+    return () => {
+      document.removeEventListener('fullscreenchange', onFs)
+      document.removeEventListener('webkitfullscreenchange', onFs)
+      v?.removeEventListener('webkitendfullscreen', onEndNative)
+    }
   }, [])
 
   const showControlsTemporarily = () => {
@@ -160,8 +189,23 @@ export function VideoPlayer({ src, poster, title, videoId }: VideoPlayerProps) {
   }
   const toggleMute = () => { if (videoRef.current) videoRef.current.muted = !videoRef.current.muted }
   const toggleFullscreen = async () => {
-    if (!fullscreen) await containerRef.current?.requestFullscreen()
-    else await document.exitFullscreen()
+    try {
+      const doc = document as Document & { webkitFullscreenElement?: Element; webkitExitFullscreen?: () => void }
+      if (doc.fullscreenElement || doc.webkitFullscreenElement) {
+        if (doc.exitFullscreen) await doc.exitFullscreen().catch(() => {})
+        else doc.webkitExitFullscreen?.()
+        return
+      }
+      if (containerRef.current?.requestFullscreen) {
+        await containerRef.current.requestFullscreen()
+        return
+      }
+      // iOS Safari: only the video element itself can go fullscreen
+      const v = videoRef.current as (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | null
+      v?.webkitEnterFullscreen?.()
+    } catch {
+      // fullscreen unavailable — no-op
+    }
   }
   const togglePiP = async () => {
     if (document.pictureInPictureElement) await document.exitPictureInPicture()
@@ -183,6 +227,33 @@ export function VideoPlayer({ src, poster, title, videoId }: VideoPlayerProps) {
     if (videoRef.current) videoRef.current.playbackRate = s
     setSpeed(s)
     setShowSettings(false)
+  }
+
+  /**
+   * Real rendition switching. hls.js path swaps the level in place;
+   * native path (iOS Safari) reloads the variant playlist URL, keeping
+   * position across the swap.
+   */
+  const selectQuality = (q: string) => {
+    setQuality(q)
+    setShowSettings(false)
+    const v = videoRef.current
+    const hls = hlsRef.current
+    if (hls && levels.length > 0) {
+      if (q === 'Auto') {
+        hls.currentLevel = -1
+      } else {
+        const target = levels.find((l) => `${l.height}p` === q)
+        if (target) hls.currentLevel = target.index
+      }
+      return
+    }
+    if (!v || !getVariantUrl || !src.includes('.m3u8')) return
+    const url = q === 'Auto' ? src : getVariantUrl(q)
+    if (!url || v.currentSrc === url && v.src === url) return
+    pendingSeek.current = v.currentTime
+    v.src = url
+    v.play().catch(() => {})
   }
 
   const skip = (secs: number) => {
@@ -229,6 +300,12 @@ export function VideoPlayer({ src, poster, title, videoId }: VideoPlayerProps) {
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0
   const bufferProgress = duration > 0 ? (buffered / duration) * 100 : 0
+
+  // Real options: hls.js levels when streaming via MSE, rendition list on native iOS
+  const qualityOptions =
+    levels.length > 0
+      ? ['Auto', ...levels.map((l) => `${l.height}p`)]
+      : ['Auto', ...qualities]
 
   return (
     <div
@@ -321,7 +398,12 @@ export function VideoPlayer({ src, poster, title, videoId }: VideoPlayerProps) {
             {speed !== 1 && <span className="text-xs text-violet-300 font-medium">{speed}x</span>}
 
             {/* Settings */}
-            <div className="relative">
+            <div className="relative flex items-center gap-1.5">
+              {quality !== 'Auto' && (
+                <span className="rounded-md bg-violet-500/25 border border-violet-500/40 px-1.5 py-0.5 text-[10px] font-bold text-violet-200 tabular-nums">
+                  {quality}
+                </span>
+              )}
               <button onClick={(e) => { e.stopPropagation(); setShowSettings(!showSettings) }} className="text-white/70 hover:text-white" aria-label="Settings">
                 <Settings className="h-5 w-5" />
               </button>
@@ -331,9 +413,12 @@ export function VideoPlayer({ src, poster, title, videoId }: VideoPlayerProps) {
                     <button onClick={() => setSettingsTab('quality')} className={`flex-1 px-3 py-2 text-xs font-medium ${settingsTab === 'quality' ? 'text-violet-400' : 'text-white/50'}`}>Quality</button>
                     <button onClick={() => setSettingsTab('speed')} className={`flex-1 px-3 py-2 text-xs font-medium ${settingsTab === 'speed' ? 'text-violet-400' : 'text-white/50'}`}>Speed</button>
                   </div>
-                  {settingsTab === 'quality' && QUALITY_OPTIONS.map((q) => (
-                    <button key={q} onClick={() => { setQuality(q); setShowSettings(false) }}
-                      className={`w-full text-left px-4 py-2 text-xs hover:bg-white/5 ${quality === q ? 'text-violet-400' : 'text-white/60'}`}>{q}</button>
+                  {settingsTab === 'quality' && qualityOptions.map((q) => (
+                    // eslint-disable-next-line react-hooks/refs -- selectQuality only touches refs on tap, never during render
+                    <button key={q} onClick={() => selectQuality(q)}
+                      className={`w-full text-left px-4 py-2 text-xs hover:bg-white/5 ${quality === q ? 'text-violet-400' : 'text-white/60'}`}>
+                      {q}{quality === q ? ' ✓' : ''}
+                    </button>
                   ))}
                   {settingsTab === 'speed' && SPEED_OPTIONS.map((s) => (
                     <button key={s} onClick={() => setPlaybackSpeed(s)}
