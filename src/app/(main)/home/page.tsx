@@ -26,7 +26,9 @@ export default function HomePage() {
   const [progress, setProgress] = useState<ProgressItem[] | null>(null)
   const [me, setMe] = useState<Me | null>(null)
   const [heroIdx, setHeroIdx] = useState(0)
+  const [trendIdx, setTrendIdx] = useState(0)
   const heroRef = useRef<HTMLDivElement>(null)
+  const trendRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -57,6 +59,7 @@ export default function HomePage() {
   // Hero autoplay — programmatic scrolls are flagged so the scroll
   // handler ignores them; manual swipes pause autoplay for 10s.
   const autoScrolling = useRef(false)
+  const trendScrolling = useRef(false)
   const lastInteract = useRef(0)
 
   useEffect(() => {
@@ -67,6 +70,47 @@ export default function HomePage() {
     }, 3000)
     return () => clearInterval(t)
   }, [hero.length])
+
+  // Top Trending auto-rail (same treatment as the hero)
+  const trendCount = (trending ?? []).length
+  useEffect(() => {
+    if (trendCount < 2) return
+    const t = setInterval(() => {
+      if (Date.now() - lastInteract.current < 10000) return
+      setTrendIdx((i) => (i + 1) % trendCount)
+    }, 4000)
+    return () => clearInterval(t)
+  }, [trendCount])
+
+  useEffect(() => {
+    const el = trendRef.current
+    const child = el?.children[trendIdx] as HTMLElement | undefined
+    if (!el || !child) return
+    trendScrolling.current = true
+    el.scrollTo({ left: Math.max(child.offsetLeft - 16, 0), behavior: 'smooth' })
+    const timer = setTimeout(() => {
+      trendScrolling.current = false
+    }, 650)
+    return () => clearTimeout(timer)
+  }, [trendIdx])
+
+  const onTrendScroll = () => {
+    if (trendScrolling.current) return
+    const el = trendRef.current
+    if (!el || el.children.length === 0) return
+    lastInteract.current = Date.now()
+    let best = 0
+    let bestDist = Infinity
+    for (let i = 0; i < el.children.length; i++) {
+      const child = el.children[i] as HTMLElement
+      const dist = Math.abs(child.offsetLeft - 16 - el.scrollLeft)
+      if (dist < bestDist) {
+        bestDist = dist
+        best = i
+      }
+    }
+    setTrendIdx((prev) => (prev === best ? prev : best))
+  }
 
   const scrollToHero = (idx: number) => {
     const el = heroRef.current
@@ -256,7 +300,12 @@ export default function HomePage() {
                   View All <ChevronRight className="h-3.5 w-3.5" />
                 </Link>
               </div>
-              <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 items-end" style={{ scrollbarWidth: 'none' }}>
+              <div
+                ref={trendRef}
+                onScroll={onTrendScroll}
+                className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 items-end"
+                style={{ scrollbarWidth: 'none' }}
+              >
                 {(trending ?? []).slice(0, 8).map((v, i) => (
                   <Link key={v.id} href={`/watch/${v.id}`} className="group shrink-0 flex items-end">
                     <span
