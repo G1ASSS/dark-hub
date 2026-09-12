@@ -61,6 +61,7 @@ export const profileUpdateSchema = z.object({
   bio: z.string().max(500).optional(),
   website: z.string().url().optional().or(z.literal('')),
   location: z.string().max(100).optional(),
+  avatarUrl: z.string().url().max(500).optional().or(z.literal('')),
 })
 
 export const passwordChangeSchema = z
@@ -80,3 +81,12 @@ export type VideoUploadInput = z.infer<typeof videoUploadSchema>
 export type ReportInput = z.infer<typeof reportSchema>
 export type CopyrightRequestInput = z.infer<typeof copyrightRequestSchema>
 export type ProfileUpdateInput = z.infer<typeof profileUpdateSchema>
+
+/** Shared Server-Action form state (field errors + banner + 2FA challenge). */
+export type AuthFormState =
+  | {
+      errors?: Record<string, string[] | undefined>
+      message?: string
+      totpRequired?: boolean
+    }
+  | undefined

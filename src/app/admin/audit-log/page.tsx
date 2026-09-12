@@ -1,57 +1,67 @@
-import { ClipboardList } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
+import { prisma } from '@/lib/db/prisma'
+import { TimeAgo } from '@/components/ui/time-ago'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Audit Log' }
+export const dynamic = 'force-dynamic'
 
-const LOGS = Array.from({ length: 30 }, (_, i) => ({
-  id: `log-${i+1}`,
-  actor: ['admin_jane', 'mod_alex', 'system'][i % 3],
-  action: ['HIDE_VIDEO', 'BAN_USER', 'APPROVE_CREATOR', 'REMOVE_VIDEO', 'RESOLVE_REPORT', 'REJECT_COPYRIGHT'][i % 6],
-  targetType: ['VIDEO', 'USER', 'REPORT', 'COPYRIGHT'][i % 4],
-  targetId: `id-${1000+i}`,
-  ip: `192.168.${i%255}.${(i*7)%255}`,
-  createdAt: new Date(Date.now() - i * 1800000).toISOString(),
-}))
-
-const ACTION_COLOR: Record<string,string> = {
-  HIDE_VIDEO: 'text-amber-400',
-  BAN_USER: 'text-rose-400',
-  APPROVE_CREATOR: 'text-emerald-400',
-  REMOVE_VIDEO: 'text-rose-400',
-  RESOLVE_REPORT: 'text-sky-400',
-  REJECT_COPYRIGHT: 'text-slate-400',
+const ACTION_COLOR: Record<string, string> = {
+  VIDEO_APPROVED: 'text-emerald-400',
+  VIDEO_REJECTED: 'text-rose-400',
+  USER_BANNED: 'text-rose-400',
+  CREATOR_APPROVED: 'text-emerald-400',
+  REPORT_RESOLVED: 'text-emerald-400',
 }
 
-export default function AuditLogPage() {
+export default async function AdminAuditLogPage() {
+  const rows = await prisma.auditLog.findMany({
+    orderBy: { createdAt: 'desc' },
+    take: 100,
+    select: {
+      id: true, action: true, targetType: true, targetId: true,
+      ipAddress: true, createdAt: true,
+      actor: { select: { username: true } },
+    },
+  })
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Audit Log</h1>
-        <p className="text-sm text-muted-foreground mt-1">Immutable record of all moderation actions</p>
+        <p className="text-sm text-muted-foreground mt-1">Immutable record of staff and user actions</p>
       </div>
+
       <div className="glass rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-white/6 text-xs text-muted-foreground uppercase tracking-wider">
-                <th className="text-left px-4 py-3">Timestamp</th>
-                <th className="text-left px-4 py-3">Actor</th>
-                <th className="text-left px-4 py-3">Action</th>
-                <th className="text-left px-4 py-3">Target</th>
-                <th className="text-left px-4 py-3">IP Address</th>
+              <tr className="text-left text-xs text-muted-foreground border-b border-white/8">
+                <th className="px-4 py-3 font-medium">Action</th>
+                <th className="px-4 py-3 font-medium">Actor</th>
+                <th className="px-4 py-3 font-medium">Target</th>
+                <th className="px-4 py-3 font-medium">IP</th>
+                <th className="px-4 py-3 font-medium">When</th>
               </tr>
             </thead>
             <tbody>
-              {LOGS.map((log, i) => (
-                <tr key={log.id} className={`border-b border-white/4 hover:bg-white/3 transition-colors text-xs ${i === LOGS.length - 1 ? 'border-b-0' : ''}`}>
-                  <td className="px-4 py-3 text-muted-foreground font-mono">{new Date(log.createdAt).toLocaleString()}</td>
-                  <td className="px-4 py-3 font-medium">@{log.actor}</td>
-                  <td className="px-4 py-3"><span className={`font-medium ${ACTION_COLOR[log.action] ?? 'text-foreground'}`}>{log.action.replace(/_/g, ' ')}</span></td>
-                  <td className="px-4 py-3"><Badge variant="outline" className="text-[10px] mr-1">{log.targetType}</Badge><span className="text-muted-foreground">{log.targetId}</span></td>
-                  <td className="px-4 py-3 text-muted-foreground font-mono">{log.ip}</td>
+              {rows.map((r) => (
+                <tr key={r.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
+                  <td className={`px-4 py-3 font-medium text-xs whitespace-nowrap ${ACTION_COLOR[r.action] ?? ''}`}>
+                    {r.action.replace(/_/g, ' ')}
+                  </td>
+                  <td className="px-4 py-3 text-xs">{r.actor ? `@${r.actor.username}` : 'system'}</td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground font-mono">
+                    {r.targetType ? `${r.targetType} ${r.targetId?.slice(0, 10)}…` : '—'}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground font-mono">{r.ipAddress ?? '—'}</td>
+                  <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap" suppressHydrationWarning>
+                    <TimeAgo date={r.createdAt.toISOString()} />
+                  </td>
                 </tr>
               ))}
+              {rows.length === 0 && (
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-muted-foreground">No audit entries yet.</td></tr>
+              )}
             </tbody>
           </table>
         </div>

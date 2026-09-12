@@ -43,7 +43,7 @@ export const getUser = cache(async () => {
       email: true,
       username: true,
       role: true,
-      profile: { select: { displayName: true, avatarUrl: true } },
+      profile: { select: { displayName: true, avatarUrl: true, bio: true, website: true, location: true } },
     },
   })
 })

@@ -3,15 +3,11 @@
 import { redirect } from 'next/navigation'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/db/prisma'
-import { registerSchema, loginSchema } from '@/lib/validators'
+import { registerSchema, loginSchema, type AuthFormState } from '@/lib/validators'
 import { createSession, deleteSession } from '@/lib/auth/cookies'
+import { verifyTotpCode } from '@/lib/auth/totp'
 
-export type AuthFormState =
-  | {
-      errors?: Record<string, string[] | undefined>
-      message?: string
-    }
-  | undefined
+export type { AuthFormState }
 
 function safeRedirectTarget(value: unknown): string {
   if (typeof value === 'string' && value.startsWith('/') && !value.startsWith('//')) {
@@ -78,7 +74,15 @@ export async function login(state: AuthFormState, formData: FormData): Promise<A
 
   const user = await prisma.user.findUnique({
     where: { email },
-    select: { id: true, role: true, passwordHash: true, isActive: true, isBanned: true },
+    select: {
+      id: true,
+      role: true,
+      passwordHash: true,
+      isActive: true,
+      isBanned: true,
+      twoFactorEnabled: true,
+      twoFactorSecret: true,
+    },
   })
 
   // Generic message to avoid user enumeration
@@ -92,6 +96,14 @@ export async function login(state: AuthFormState, formData: FormData): Promise<A
   const ok = await bcrypt.compare(password, user.passwordHash)
   if (!ok) {
     return { message: 'Invalid email or password.' }
+  }
+
+  // Second factor when enabled: first pass asks for the code, second verifies.
+  if (user.twoFactorEnabled && user.twoFactorSecret) {
+    const code = String(formData.get('totpCode') ?? '')
+    if (!code) return { totpRequired: true }
+    const valid = await verifyTotpCode(user.twoFactorSecret, email, code)
+    if (!valid) return { message: 'Invalid two-factor code.', totpRequired: true }
   }
 
   await createSession(user.id, user.role)

@@ -1,7 +1,7 @@
 "use client"
 import { useState } from 'react'
 import Link from 'next/link'
-import { Mail, ArrowLeft, CheckCircle2 } from 'lucide-react'
+import { Mail, ArrowLeft, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -9,14 +9,24 @@ import { Label } from '@/components/ui/label'
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
-  const [sent, setSent] = useState(false)
+  const [result, setResult] = useState<{ sent: boolean; message: string } | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    await new Promise((r) => setTimeout(r, 1200))
-    setLoading(false)
-    setSent(true)
+    try {
+      const res = await fetch('/api/auth/forgot', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+      const data = (await res.json()) as { sent: boolean; message?: string; error?: string }
+      setResult({ sent: data.sent && res.ok, message: data.message ?? data.error ?? 'Something went wrong.' })
+    } catch {
+      setResult({ sent: false, message: 'Network error — try again.' })
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -26,18 +36,20 @@ export default function ForgotPasswordPage() {
           <ArrowLeft className="h-4 w-4" /> Back to login
         </Link>
 
-        {sent ? (
+        {result ? (
           <div className="text-center py-4">
-            <CheckCircle2 className="h-12 w-12 text-emerald-400 mx-auto mb-4" />
-            <h1 className="text-xl font-bold mb-2">Check your email</h1>
-            <p className="text-sm text-muted-foreground">
-              We sent a password reset link to <strong>{email}</strong>. It expires in 1 hour.
-            </p>
+            {result.sent ? (
+              <CheckCircle2 className="h-12 w-12 text-emerald-400 mx-auto mb-4" />
+            ) : (
+              <AlertTriangle className="h-12 w-12 text-amber-400 mx-auto mb-4" />
+            )}
+            <h1 className="text-xl font-bold mb-2">{result.sent ? 'Check your email' : 'Unavailable'}</h1>
+            <p className="text-sm text-muted-foreground">{result.message}</p>
           </div>
         ) : (
           <>
             <h1 className="text-xl font-bold mb-1">Reset password</h1>
-            <p className="text-sm text-muted-foreground mb-6">Enter your email and we'll send a reset link.</p>
+            <p className="text-sm text-muted-foreground mb-6">Enter your email and we will send a reset link.</p>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="reset-email">Email address</Label>

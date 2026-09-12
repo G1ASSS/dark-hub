@@ -1,54 +1,81 @@
-"use client"
-import { BadgeCheck, FileText, CheckCircle2, XCircle, Clock } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { prisma } from '@/lib/db/prisma'
 import { Badge } from '@/components/ui/badge'
+import { CreatorModButtons } from '@/components/admin/mod-buttons'
+import { TimeAgo } from '@/components/ui/time-ago'
 import type { Metadata } from 'next'
 
-const PENDING = Array.from({ length: 10 }, (_, i) => ({
-  id: `vc-${i+1}`,
-  name: ['Stella Noir','Axe Media','Luna Spark','Prism Studio','Dark Vale','Crimson Arc','Nova Films','Echo Collective','Silver Veil','Obsidian Peak'][i],
-  slug: `creator-${i+1}`,
-  email: `creator${i+1}@example.com`,
-  docs: ((i * 29) % 3) + 2,
-  appliedAt: new Date(Date.now() - i * 86400000 * 0.5).toISOString(),
-  status: ['PENDING','PENDING','PENDING','UNDER_REVIEW','PENDING','PENDING','UNDER_REVIEW','PENDING','PENDING','PENDING'][i],
-}))
+export const metadata: Metadata = { title: 'Creator Verification' }
+export const dynamic = 'force-dynamic'
 
-export default function AdminCreatorsPage() {
+const STATUS_VARIANT: Record<string, 'verified' | 'new' | 'destructive' | 'outline'> = {
+  PENDING: 'verified',
+  APPROVED: 'new',
+  REJECTED: 'destructive',
+  SUSPENDED: 'outline',
+}
+
+export default async function AdminCreatorsPage() {
+  const creators = await prisma.creator.findMany({
+    orderBy: [{ verificationStatus: 'asc' }, { createdAt: 'asc' }],
+    take: 50,
+    select: {
+      id: true, displayName: true, slug: true,
+      verificationStatus: true, isVerified: true, createdAt: true,
+      user: { select: { email: true } },
+      _count: { select: { videos: true } },
+    },
+  })
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Creator Verification</h1>
-        <p className="text-sm text-muted-foreground mt-1">{PENDING.filter(p => p.status === 'PENDING').length} applications pending review</p>
+        <p className="text-sm text-muted-foreground mt-1">
+          {creators.filter((c) => c.verificationStatus === 'PENDING').length} pending applications
+        </p>
       </div>
-      <div className="glass rounded-2xl divide-y divide-white/6">
-        {PENDING.map((c) => (
-          <div key={c.id} className="flex items-center gap-4 p-4 hover:bg-white/3 transition-colors">
-            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-violet-500/20 to-rose-500/20 flex items-center justify-center shrink-0">
-              <BadgeCheck className="h-6 w-6 text-violet-400" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <p className="font-medium text-sm">{c.name}</p>
-                <Badge variant={c.status === 'UNDER_REVIEW' ? 'verified' : 'secondary'} className="text-[10px]">
-                  {c.status === 'UNDER_REVIEW' ? <><Clock className="h-2.5 w-2.5 mr-1" />Under Review</> : 'Pending'}
-                </Badge>
-              </div>
-              <p className="text-xs text-muted-foreground">{c.email} · Applied {new Date(c.appliedAt).toLocaleDateString()} · {c.docs} documents</p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <Button variant="outline" size="sm" className="gap-1.5 text-xs h-8">
-                <FileText className="h-3 w-3" /> Review Docs
-              </Button>
-              <button className="h-8 w-8 flex items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors" title="Approve">
-                <CheckCircle2 className="h-4 w-4" />
-              </button>
-              <button className="h-8 w-8 flex items-center justify-center rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition-colors" title="Reject">
-                <XCircle className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-        ))}
+
+      <div className="glass rounded-2xl overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-muted-foreground border-b border-white/8">
+                <th className="px-4 py-3 font-medium">Creator</th>
+                <th className="px-4 py-3 font-medium">Videos</th>
+                <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 font-medium">Applied</th>
+                <th className="px-4 py-3 font-medium text-right">Review</th>
+              </tr>
+            </thead>
+            <tbody>
+              {creators.map((c) => (
+                <tr key={c.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
+                  <td className="px-4 py-3">
+                    <p className="font-medium">{c.displayName}</p>
+                    <p className="text-xs text-muted-foreground">@{c.slug} · {c.user.email}</p>
+                  </td>
+                  <td className="px-4 py-3 tabular-nums">{c._count.videos}</td>
+                  <td className="px-4 py-3">
+                    <Badge variant={STATUS_VARIANT[c.verificationStatus] ?? 'outline'} className="text-[10px]">
+                      {c.isVerified ? '✓ ' : ''}{c.verificationStatus}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap" suppressHydrationWarning>
+                    <TimeAgo date={c.createdAt.toISOString()} />
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="flex justify-end">
+                      {c.verificationStatus === 'PENDING' && <CreatorModButtons creatorId={c.id} />}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+              {creators.length === 0 && (
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-muted-foreground">No creators yet.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   )

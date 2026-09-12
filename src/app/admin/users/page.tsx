@@ -1,69 +1,87 @@
-"use client"
-import { useState } from 'react'
-import { Search, Shield, Ban, UserCheck, ChevronDown } from 'lucide-react'
-import { Input } from '@/components/ui/input'
+import { prisma } from '@/lib/db/prisma'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { UserBanButton } from '@/components/admin/mod-buttons'
+import { TimeAgo } from '@/components/ui/time-ago'
+import type { Metadata } from 'next'
 
-const USERS = Array.from({ length: 25 }, (_, i) => ({
-  id: `user-${i + 1}`,
-  username: `user_${i + 1}`,
-  email: `user${i + 1}@example.com`,
-  role: ['USER', 'CREATOR', 'MODERATOR', 'ADMIN'][i % 4],
-  status: i % 8 === 0 ? 'BANNED' : i % 5 === 0 ? 'SUSPENDED' : 'ACTIVE',
-  joinedAt: new Date(Date.now() - i * 86400000 * 10).toISOString(),
-  videos: i % 4 === 1 ? (i * 37) % 50 : 0,
-}))
+export const metadata: Metadata = { title: 'Users' }
+export const dynamic = 'force-dynamic'
 
-export default function AdminUsersPage() {
-  const [search, setSearch] = useState('')
-  const filtered = USERS.filter(u => !search || u.username.includes(search) || u.email.includes(search))
+export default async function AdminUsersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>
+}) {
+  const { q } = await searchParams
+  const users = await prisma.user.findMany({
+    where: q
+      ? { OR: [{ username: { contains: q, mode: 'insensitive' } }, { email: { contains: q, mode: 'insensitive' } }] }
+      : undefined,
+    orderBy: { createdAt: 'desc' },
+    take: 50,
+    select: {
+      id: true, username: true, email: true, role: true,
+      isActive: true, isBanned: true, createdAt: true,
+      _count: { select: { favorites: true } },
+    },
+  })
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">User Management</h1>
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search users…" className="pl-9 max-w-md" />
+      <div>
+        <h1 className="text-2xl font-bold">Users</h1>
+        <p className="text-sm text-muted-foreground mt-1">{users.length} shown (latest first)</p>
       </div>
+
+      <form action="/admin/users" method="get" className="max-w-sm">
+        <Input name="q" placeholder="Search username or email…" defaultValue={q ?? ''} />
+      </form>
+
       <div className="glass rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-white/6 text-xs text-muted-foreground uppercase tracking-wider">
-                <th className="text-left px-4 py-3">User</th>
-                <th className="text-left px-4 py-3">Role</th>
-                <th className="text-left px-4 py-3">Status</th>
-                <th className="text-left px-4 py-3">Videos</th>
-                <th className="text-left px-4 py-3">Joined</th>
-                <th className="text-right px-4 py-3">Actions</th>
+              <tr className="text-left text-xs text-muted-foreground border-b border-white/8">
+                <th className="px-4 py-3 font-medium">User</th>
+                <th className="px-4 py-3 font-medium">Role</th>
+                <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 font-medium">Joined</th>
+                <th className="px-4 py-3 font-medium text-right">Mod</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((user, i) => (
-                <tr key={user.id} className={`border-b border-white/4 hover:bg-white/3 ${i === filtered.length - 1 ? 'border-b-0' : ''}`}>
+              {users.map((u) => (
+                <tr key={u.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
                   <td className="px-4 py-3">
-                    <div>
-                      <p className="font-medium">@{user.username}</p>
-                      <p className="text-xs text-muted-foreground">{user.email}</p>
-                    </div>
+                    <p className="font-medium">@{u.username}</p>
+                    <p className="text-xs text-muted-foreground">{u.email}</p>
                   </td>
                   <td className="px-4 py-3">
-                    <Badge variant={user.role === 'ADMIN' ? 'default' : user.role === 'MODERATOR' ? 'verified' : 'outline'} className="text-[10px]">{user.role}</Badge>
+                    <Badge variant={u.role === 'ADMIN' ? 'verified' : 'outline'} className="text-[10px]">{u.role}</Badge>
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`text-xs font-medium ${user.status === 'ACTIVE' ? 'text-emerald-400' : user.status === 'BANNED' ? 'text-rose-400' : 'text-amber-400'}`}>{user.status}</span>
+                    {!u.isActive ? (
+                      <Badge variant="outline" className="text-[10px]">INACTIVE</Badge>
+                    ) : u.isBanned ? (
+                      <Badge variant="destructive" className="text-[10px]">BANNED</Badge>
+                    ) : (
+                      <Badge variant="new" className="text-[10px]">ACTIVE</Badge>
+                    )}
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">{user.videos}</td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">{new Date(user.joinedAt).toLocaleDateString()}</td>
+                  <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap" suppressHydrationWarning>
+                    <TimeAgo date={u.createdAt.toISOString()} />
+                  </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <button className="h-7 w-7 flex items-center justify-center rounded-lg hover:bg-emerald-500/10 text-muted-foreground hover:text-emerald-400 transition-colors" title="Verify"><UserCheck className="h-3.5 w-3.5" /></button>
-                      <button className="h-7 w-7 flex items-center justify-center rounded-lg hover:bg-amber-500/10 text-muted-foreground hover:text-amber-400 transition-colors" title="Suspend"><Shield className="h-3.5 w-3.5" /></button>
-                      <button className="h-7 w-7 flex items-center justify-center rounded-lg hover:bg-rose-500/10 text-muted-foreground hover:text-rose-400 transition-colors" title="Ban"><Ban className="h-3.5 w-3.5" /></button>
-                    </div>
+                    <span className="flex justify-end">
+                      {u.role !== 'ADMIN' && <UserBanButton userId={u.id} banned={u.isBanned} />}
+                    </span>
                   </td>
                 </tr>
               ))}
+              {users.length === 0 && (
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-muted-foreground">No users found.</td></tr>
+              )}
             </tbody>
           </table>
         </div>

@@ -129,9 +129,151 @@ export default function WatchPage({ params }: PageProps) {
   const related = relatedReal ?? MOCK_TRENDING.filter((v) => v.id !== video.id).slice(0, 8)
 
   const [liked, setLiked] = useState(false)
+  const [likeCount, setLikeCount] = useState<number | null>(null)
   const [favorited, setFavorited] = useState(false)
   const [showFullDesc, setShowFullDesc] = useState(false)
   const [comment, setComment] = useState('')
+  const [comments, setComments] = useState<{ id: string; body: string; createdAt: string; user: { username: string; displayName: string } }[] | null>(null)
+  const [commentPosting, setCommentPosting] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [reportReason, setReportReason] = useState<string | null>(null)
+  const [reportDetails, setReportDetails] = useState('')
+  const [reportStatus, setReportStatus] = useState<'idle' | 'sending' | 'done' | 'error'>('idle')
+
+  // Interaction state for real videos (likes, favs, comments)
+  useEffect(() => {
+    if (!real) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        if (!cancelled) setLikeCount(real.likes)
+        const [likeRes, favRes, comRes] = await Promise.all([
+          fetch(`/api/likes?videoId=${videoId}`),
+          fetch('/api/favorites'),
+          fetch(`/api/videos/${videoId}/comments`),
+        ])
+        if (cancelled) return
+        if (likeRes.ok) {
+          const d = (await likeRes.json()) as { liked: boolean | null }
+          if (d.liked !== null) setLiked(d.liked)
+        }
+        if (favRes.ok) {
+          const d = (await favRes.json()) as { data?: { id: string }[] }
+          setFavorited(!!d.data?.some((v) => v.id === videoId))
+        }
+        if (comRes.ok) {
+          const d = (await comRes.json()) as { data?: typeof comments }
+          setComments(d.data ?? [])
+        }
+      } catch {
+        // logged-out or offline — local-only interactions remain
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [real?.id])
+
+  const toggleLike = async () => {
+    if (!real) {
+      setLiked(!liked)
+      return
+    }
+    const res = await fetch('/api/likes', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ videoId }),
+    })
+    if (!res.ok) return
+    const d = (await res.json()) as { liked: boolean; likes: number }
+    setLiked(d.liked)
+    setLikeCount(d.likes)
+  }
+
+  const toggleFavorite = async () => {
+    if (!real) {
+      setFavorited(!favorited)
+      return
+    }
+    const res = await fetch('/api/favorites', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ videoId }),
+    })
+    if (!res.ok) return
+    const d = (await res.json()) as { favorited: boolean }
+    setFavorited(d.favorited)
+  }
+
+  const share = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // clipboard unavailable — no-op
+    }
+  }
+
+  const postComment = async () => {
+    if (!comment.trim() || commentPosting) return
+    if (!real) {
+      setComment('')
+      return
+    }
+    setCommentPosting(true)
+    try {
+      const res = await fetch(`/api/videos/${videoId}/comments`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ body: comment.trim() }),
+      })
+      if (res.ok) {
+        const d = (await res.json()) as { id: string; body: string; createdAt: string }
+        setComments((prev) => [
+          { ...d, user: { username: 'you', displayName: 'You' } },
+          ...(prev ?? []),
+        ])
+        setComment('')
+      }
+    } finally {
+      setCommentPosting(false)
+    }
+  }
+
+  const REPORT_REASONS: { label: string; value: string }[] = [
+    { label: 'Illegal content', value: 'ILLEGAL_CONTENT' },
+    { label: 'Non-consensual', value: 'NON_CONSENSUAL' },
+    { label: 'Copyright infringement', value: 'COPYRIGHT_INFRINGEMENT' },
+    { label: 'Underage concern', value: 'UNDERAGE_CONTENT' },
+    { label: 'Harassment', value: 'HARASSMENT' },
+    { label: 'Spam', value: 'SPAM' },
+  ]
+
+  const submitReport = async () => {
+    if (!reportReason || reportStatus === 'sending') return
+    if (!real) {
+      setReportStatus('done')
+      return
+    }
+    setReportStatus('sending')
+    try {
+      const res = await fetch('/api/reports', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          targetType: 'VIDEO',
+          targetId: videoId,
+          reason: reportReason,
+          details: reportDetails.trim() || undefined,
+        }),
+      })
+      setReportStatus(res.ok ? 'done' : 'error')
+    } catch {
+      setReportStatus('error')
+    }
+  }
   const [showReport, setShowReport] = useState(false)
 
   const description = real?.description
@@ -190,26 +332,26 @@ export default function WatchPage({ params }: PageProps) {
               <Button
                 variant={liked ? 'default' : 'outline'}
                 size="sm"
-                onClick={() => setLiked(!liked)}
+                onClick={toggleLike}
                 className="gap-1.5"
                 aria-label="Like"
               >
                 <ThumbsUp className="h-4 w-4" fill={liked ? 'white' : 'none'} />
-                {liked ? '24.6K' : '24.5K'}
+                {formatViews(likeCount ?? 24500)}
               </Button>
               <Button
                 variant={favorited ? 'default' : 'outline'}
                 size="sm"
-                onClick={() => setFavorited(!favorited)}
+                onClick={toggleFavorite}
                 className="gap-1.5"
                 aria-label="Favourite"
               >
                 <Heart className="h-4 w-4" fill={favorited ? 'white' : 'none'} />
                 Favourite
               </Button>
-              <Button variant="outline" size="sm" className="gap-1.5" aria-label="Share">
+              <Button variant="outline" size="sm" className="gap-1.5" aria-label="Share" onClick={share}>
                 <Share2 className="h-4 w-4" />
-                Share
+                {copied ? 'Copied!' : 'Share'}
               </Button>
               <DownloadButton videoId={video.id} qualities={real?.qualities?.length ? real.qualities : ['360p', '480p', '720p', '1080p']} />
               <Button
@@ -228,18 +370,44 @@ export default function WatchPage({ params }: PageProps) {
           {/* Report panel */}
           {showReport && (
             <div className="mb-5 glass rounded-xl p-4 border border-rose-500/20 animate-slide-up">
-              <h3 className="text-sm font-semibold mb-3 text-rose-400">Report Content</h3>
-              <div className="grid grid-cols-2 gap-2 mb-3">
-                {['Illegal content', 'Non-consensual', 'Copyright infringement', 'Underage concern', 'Harassment', 'Spam'].map((reason) => (
-                  <button key={reason} className="text-left px-3 py-2 rounded-lg text-xs border border-white/8 hover:border-rose-500/30 hover:bg-rose-500/5 transition-colors">
-                    {reason}
-                  </button>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                <Button size="sm" className="bg-rose-600 hover:bg-rose-500">Submit Report</Button>
-                <Button variant="ghost" size="sm" onClick={() => setShowReport(false)}>Cancel</Button>
-              </div>
+              {reportStatus === 'done' ? (
+                <div className="text-center py-4">
+                  <p className="text-sm font-semibold text-emerald-400 mb-1">Report received</p>
+                  <p className="text-xs text-muted-foreground">Our team reviews reports within 24 hours.</p>
+                </div>
+              ) : (
+                <>
+                  <h3 className="text-sm font-semibold mb-3 text-rose-400">Report Content</h3>
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    {REPORT_REASONS.map((reason) => (
+                      <button
+                        key={reason.value}
+                        onClick={() => setReportReason(reason.value)}
+                        className={`text-left px-3 py-2 rounded-lg text-xs border transition-colors ${reportReason === reason.value ? 'border-rose-500/50 bg-rose-500/10 text-foreground' : 'border-white/8 hover:border-rose-500/30 hover:bg-rose-500/5'}`}
+                      >
+                        {reason.label}
+                      </button>
+                    ))}
+                  </div>
+                  <textarea
+                    value={reportDetails}
+                    onChange={(e) => setReportDetails(e.target.value)}
+                    placeholder="Details (optional, max 2000 characters)"
+                    maxLength={2000}
+                    rows={2}
+                    className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring mb-3"
+                  />
+                  {reportStatus === 'error' && (
+                    <p className="text-xs text-rose-400 mb-2">Could not submit — sign in and try again.</p>
+                  )}
+                  <div className="flex gap-2">
+                    <Button size="sm" className="bg-rose-600 hover:bg-rose-500" disabled={!reportReason || reportStatus === 'sending'} onClick={submitReport}>
+                      {reportStatus === 'sending' ? 'Submitting…' : 'Submit Report'}
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => setShowReport(false)}>Cancel</Button>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -257,8 +425,8 @@ export default function WatchPage({ params }: PageProps) {
 
             {/* Tags */}
             <div className="mt-4 flex flex-wrap gap-2">
-              {['Cinematic', 'HD', 'Premium', '4K'].map((tag) => (
-                <Link key={tag} href={`/search?q=${tag.toLowerCase()}`}>
+              {(video.categories.length > 0 ? video.categories : ['cinematic', 'hd', 'premium']).map((tag) => (
+                <Link key={tag} href={`/search?category=${encodeURIComponent(tag)}`}>
                   <Badge variant="outline" className="cursor-pointer hover:border-cyan/40 hover:text-cyan transition-colors">
                     #{tag}
                   </Badge>
@@ -269,7 +437,7 @@ export default function WatchPage({ params }: PageProps) {
 
           {/* Comments */}
           <div>
-            <h2 className="text-lg font-semibold mb-4">Comments ({MOCK_COMMENTS.length})</h2>
+            <h2 className="text-lg font-semibold mb-4">Comments ({(comments ?? MOCK_COMMENTS).length})</h2>
 
             {/* Comment input */}
             <div className="flex gap-3 mb-6">
@@ -281,14 +449,18 @@ export default function WatchPage({ params }: PageProps) {
                   type="text"
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
-                  placeholder="Add a comment…"
-                  className="w-full h-10 pl-4 pr-12 rounded-xl border border-white/10 bg-white/5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  onKeyDown={(e) => e.key === 'Enter' && postComment()}
+                  placeholder={real ? 'Add a comment…' : 'Sign in to comment…'}
+                  disabled={!real}
+                  maxLength={1000}
+                  className="w-full h-10 pl-4 pr-12 rounded-xl border border-white/10 bg-white/5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
                 />
                 {comment && (
                   <button
-                    className="absolute right-2 top-1/2 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-lg gradient-primary"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-lg gradient-primary disabled:opacity-50"
                     aria-label="Post comment"
-                    onClick={() => setComment('')}
+                    onClick={postComment}
+                    disabled={commentPosting}
                   >
                     <Send className="h-3.5 w-3.5 text-white" />
                   </button>
@@ -298,7 +470,7 @@ export default function WatchPage({ params }: PageProps) {
 
             {/* Comment list — commenter names are anonymised for privacy */}
             <div className="space-y-5">
-              {MOCK_COMMENTS.map((c) => {
+              {(comments ?? MOCK_COMMENTS).map((c) => {
                 const anonName = anonymizeName(c.user.username)
                 return (
                   <div key={c.id} className="flex gap-3">
@@ -312,16 +484,13 @@ export default function WatchPage({ params }: PageProps) {
                         <span className="text-xs text-muted-foreground/60" suppressHydrationWarning>{formatTimeAgo(c.createdAt)}</span>
                       </div>
                       <p className="text-sm leading-relaxed">{c.body}</p>
-                      <div className="flex items-center gap-3 mt-1.5">
-                        <button className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
-                          <ThumbsUp className="h-3 w-3" /> 12
-                        </button>
-                        <button className="text-xs text-muted-foreground hover:text-foreground transition-colors">Reply</button>
-                      </div>
                     </div>
                   </div>
                 )
               })}
+              {(comments ?? []).length === 0 && real && (
+                <p className="text-sm text-muted-foreground">No comments yet — start the discussion.</p>
+              )}
             </div>
           </div>
         </div>

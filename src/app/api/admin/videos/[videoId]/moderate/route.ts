@@ -1,7 +1,8 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/db/prisma'
 import { verifySession } from '@/lib/auth/dal'
+import { moderateVideo } from '@/lib/moderation'
 
 type Ctx = { params: Promise<Record<string, string>> }
 
@@ -32,32 +33,17 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     return Response.json({ error: `Video is ${video.status}, not awaiting review.` }, { status: 409 })
   }
 
-  const approved = parsed.data.decision === 'APPROVE'
-  await prisma.video.update({
-    where: { id: videoId },
-    data: approved
-      ? { status: 'PUBLISHED', publishedAt: new Date() }
-      : { status: 'REJECTED' },
-  })
-  await prisma.moderationAction.create({
-    data: {
-      moderatorId: moderator.userId,
-      targetType: 'VIDEO',
-      targetId: videoId,
+  try {
+    const status = await moderateVideo(
+      moderator.userId,
       videoId,
-      action: approved ? 'APPROVE_VIDEO' : 'REJECT_VIDEO',
-      reason: parsed.data.reason,
-    },
-  })
-  await prisma.auditLog.create({
-    data: {
-      actorId: moderator.userId,
-      action: approved ? 'VIDEO_APPROVED' : 'VIDEO_REJECTED',
-      targetType: 'VIDEO',
-      targetId: videoId,
-      metadata: { reason: parsed.data.reason ?? null },
-    },
-  })
-
-  return Response.json({ videoId, status: approved ? 'PUBLISHED' : 'REJECTED' })
+      parsed.data.decision,
+      parsed.data.reason
+    )
+    return NextResponse.json({ videoId, status })
+  } catch (err) {
+    const message = (err as Error).message
+    const code = message.includes('not awaiting review') ? 409 : message.includes('not found') ? 404 : 400
+    return NextResponse.json({ error: message }, { status: code })
+  }
 }

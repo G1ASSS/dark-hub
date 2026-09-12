@@ -74,6 +74,23 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
             )}
           </div>
 
+          {state?.totpRequired && (
+            <div className="space-y-1.5 animate-slide-up">
+              <Label htmlFor="totp">Two-factor code</Label>
+              <Input
+                id="totp"
+                name="totpCode"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                placeholder="6-digit code"
+                required
+                maxLength={6}
+                className="text-center tracking-[0.5em] font-mono"
+              />
+              <p className="text-xs text-muted-foreground">Open your authenticator app and enter the current code.</p>
+            </div>
+          )}
+
           {state?.message && (
             <p role="alert" className="text-sm text-rose-400 rounded-lg border border-rose-500/20 bg-rose-500/10 p-2.5">
               {state.message}
@@ -82,7 +99,7 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
 
           <Button type="submit" size="lg" loading={pending} className="w-full gap-2">
             <LogIn className="h-4 w-4" />
-            Sign In
+            {state?.totpRequired ? 'Verify & Sign In' : 'Sign In'}
           </Button>
         </form>
 

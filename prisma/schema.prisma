@@ -126,6 +126,7 @@ model User {
   creator           Creator?
   sessions          Session[]
   favorites         Favorite[]
+  likes             Like[]
   watchHistory      WatchHistory[]
   watchProgress     WatchProgress[]
   following         Follow[]             @relation("Follower")
@@ -245,6 +246,7 @@ model Video {
   categories    VideoCategory[]
   tags          VideoTag[]
   favorites     Favorite[]
+  likedBy       Like[]
   watchHistory  WatchHistory[]
   watchProgress WatchProgress[]
   comments      Comment[]
@@ -361,6 +363,18 @@ model Favorite {
 
   @@unique([userId, videoId])
   @@index([userId])
+  @@index([videoId])
+}
+
+model Like {
+  id        String   @id @default(cuid())
+  userId    String
+  videoId   String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video     Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, videoId])
   @@index([videoId])
 }
 

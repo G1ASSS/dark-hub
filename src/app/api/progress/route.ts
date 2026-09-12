@@ -31,6 +31,9 @@ export async function POST(req: NextRequest) {
     update: { position, duration },
     create: { userId: session.userId, videoId, position, duration },
   })
+  // Power the History tab (one fresh row per video).
+  await prisma.watchHistory.deleteMany({ where: { userId: session.userId, videoId } }).catch(() => {})
+  await prisma.watchHistory.create({ data: { userId: session.userId, videoId } }).catch(() => {})
   return NextResponse.json({ ok: true })
 }
 

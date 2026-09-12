@@ -29,6 +29,9 @@ export async function POST(req: NextRequest) {
   })
   if (!video) return Response.json({ error: 'Video not found.' }, { status: 404 })
 
+  // Count the view (fire-and-forget; playback must never wait on it).
+  prisma.video.update({ where: { id: video.id }, data: { views: { increment: 1 } } }).catch(() => {})
+
   const token = await signPlaybackToken(
     { videoId: video.id, userId: session.userId, kind: 'stream' },
     STREAM_TOKEN_TTL_SECONDS

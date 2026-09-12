@@ -1,5 +1,6 @@
 "use client"
 import { useState, useRef, useCallback } from 'react'
+import Link from 'next/link'
 import { Upload, X, CheckCircle2, AlertTriangle, Film, Image as ImageIcon, Tag, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -181,7 +182,7 @@ export default function UploadPage() {
           </p>
           <div className="flex justify-center gap-3">
             <Button onClick={() => { setStage('idle'); setFile(null); setProgress(0); setResultStatus(null) }} variant="outline">Upload Another</Button>
-            <Button>View Dashboard</Button>
+            <Link href="/dashboard"><Button>View Dashboard</Button></Link>
           </div>
         </div>
       ) : stage === 'error' ? (
