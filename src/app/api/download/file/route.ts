@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/db/prisma'
 import { verifyPlaybackToken } from '@/lib/playback/token'
 import { getStorageProvider } from '@/lib/storage'
-import { getCachedPath, serveFile, fileResponse } from '@/lib/cache/origin'
+import { getOriginBytes, bufferResponse } from '@/lib/cache/supabase-hot'
 import { checkDownloadAllowed, countDownloadsToday } from '@/lib/subscriptions/access'
 import { slugify } from '@/lib/utils'
 
@@ -83,13 +83,14 @@ export async function GET(req: NextRequest) {
   try {
     const storage = getStorageProvider()
     const fileId = asset.telegramFileId
-    const path = await getCachedPath(`a-${asset.id}`, async () => {
+    const { bytes } = await getOriginBytes(asset.id, 'mp4', fileId, 'video/mp4', async () => {
       const up = await storage.downloadStream(fileId)
       return up.body
     })
-    const served = await serveFile(path, 'video/mp4', req.headers.get('range'), 'private, no-store')
     const filename = `darkhubb-${slugify(video.title).slice(0, 60) || video.id}-${quality}.mp4`
-    return fileResponse(served, { 'content-disposition': `attachment; filename="${filename}"` })
+    return bufferResponse(bytes, 'video/mp4', req.headers.get('range'), 'private, no-store', {
+      'content-disposition': `attachment; filename="${filename}"`,
+    })
   } catch (err) {
     console.error('[download] origin fetch failed:', (err as Error).message)
     return new Response('Origin unavailable', { status: 502 })

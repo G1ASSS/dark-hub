@@ -7,6 +7,7 @@ import { prisma } from '@/lib/db/prisma'
 import { getStorageProvider } from '@/lib/storage'
 import { getScanner } from './scan'
 import { warmVideoCache } from '@/lib/cache/origin'
+import { hotPut } from '@/lib/cache/supabase-hot'
 import { probe, ladderForSource, transcodeMp4, segmentHls, probeDuration, extractThumbnail } from './ffmpeg'
 
 export type ProcessResult = {
@@ -137,6 +138,13 @@ export async function processVideo(videoId: string): Promise<ProcessResult> {
           checksum: mp4Checksum,
           storageStatus: 'STORED',
         },
+      }).then(async (row) => {
+        // Hot cache for instant playback everywhere (best-effort).
+        try {
+          await hotPut(row.id, 'mp4', await fs.readFile(mp4Path), 'video/mp4')
+        } catch (err) {
+          console.warn('[pipeline] hot cache mp4 skipped:', (err as Error).message)
+        }
       })
       await prisma.videoQuality.upsert({
         where: { videoId_resolution: { videoId, resolution: rung.label } },
@@ -178,6 +186,12 @@ export async function processVideo(videoId: string): Promise<ProcessResult> {
             segmentIndex: segIndex,
             storageStatus: 'STORED',
           },
+        }).then(async (row) => {
+          try {
+            await hotPut(row.id, 'seg', await fs.readFile(segPath), 'video/MP2T')
+          } catch (err) {
+            console.warn('[pipeline] hot cache segment skipped:', (err as Error).message)
+          }
         })
         segIndex += 1
       }
@@ -215,6 +229,12 @@ export async function processVideo(videoId: string): Promise<ProcessResult> {
           quality: 'thumb',
           storageStatus: 'STORED',
         },
+      }).then(async (row) => {
+        try {
+          await hotPut(row.id, 'thumb', await fs.readFile(thumbPath), 'image/jpeg')
+        } catch (err) {
+          console.warn('[pipeline] hot cache thumbnail skipped:', (err as Error).message)
+        }
       })
       thumbnailUrl = `/api/stream/${videoId}/thumbnail`
     } catch (err) {

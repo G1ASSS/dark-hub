@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/db/prisma'
 import { getStorageProvider } from '@/lib/storage'
-import { getCachedPath, serveFile, fileResponse } from '@/lib/cache/origin'
+import { getOriginBytes, bufferResponse } from '@/lib/cache/supabase-hot'
 
 type Ctx = { params: Promise<Record<string, string>> }
 
@@ -31,12 +31,11 @@ export async function GET(req: NextRequest, ctx: Ctx) {
   try {
     const storage = getStorageProvider()
     const fileId = asset.telegramFileId
-    const path = await getCachedPath(`a-${asset.id}`, async () => {
+    const { bytes } = await getOriginBytes(asset.id, 'thumb', fileId, 'image/jpeg', async () => {
       const up = await storage.downloadStream(fileId)
       return up.body
     })
-    const served = await serveFile(path, 'image/jpeg', req.headers.get('range'), 'private, max-age=3600')
-    return fileResponse(served)
+    return bufferResponse(bytes, 'image/jpeg', req.headers.get('range'), 'private, max-age=3600')
   } catch (err) {
     console.error('[thumbnail] origin fetch failed:', (err as Error).message)
     return new Response('Origin unavailable', { status: 502 })

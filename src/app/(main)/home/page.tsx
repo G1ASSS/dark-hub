@@ -9,6 +9,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { formatViews, formatDuration } from '@/lib/utils'
+import { fetchCached } from '@/lib/client-cache'
 import type { VideoCardData } from '@/types'
 
 type ProgressItem = {
@@ -18,16 +19,6 @@ type ProgressItem = {
 }
 
 type Me = { username: string; displayName: string; avatarUrl: string | null }
-
-async function getJSON<T>(url: string): Promise<T | null> {
-  try {
-    const res = await fetch(url)
-    if (!res.ok) return null
-    return (await res.json()) as T
-  } catch {
-    return null
-  }
-}
 
 export default function HomePage() {
   const [trending, setTrending] = useState<VideoCardData[] | null>(null)
@@ -39,11 +30,13 @@ export default function HomePage() {
 
   useEffect(() => {
     let cancelled = false
+    // Cached: back-navigation and tab switches render instantly, and
+    // concurrent mounts share one request.
     Promise.all([
-      getJSON<{ data: VideoCardData[] }>('/api/videos?sort=most_viewed&pageSize=8'),
-      getJSON<{ data: VideoCardData[] }>('/api/videos?sort=newest&pageSize=12'),
-      getJSON<{ data: ProgressItem[] }>('/api/progress'),
-      getJSON<{ user: Me }>('/api/auth/me'),
+      fetchCached<{ data: VideoCardData[] }>('/api/videos?sort=most_viewed&pageSize=8'),
+      fetchCached<{ data: VideoCardData[] }>('/api/videos?sort=newest&pageSize=12'),
+      fetchCached<{ data: ProgressItem[] }>('/api/progress'),
+      fetchCached<{ user: Me }>('/api/auth/me'),
     ]).then(([t, n, p, m]) => {
       if (cancelled) return
       setTrending(t?.data ?? [])

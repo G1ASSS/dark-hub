@@ -24,6 +24,17 @@ function cacheDir(): string {
   return process.env.SEGMENT_CACHE_DIR || join(tmpdir(), 'darkhubb-segcache')
 }
 
+/** Local path for a cache key (keys are restricted, safe as filenames). */
+export function cacheFilePath(key: string): string {
+  return join(cacheDir(), safeKey(key))
+}
+
+export async function ensureCacheDir(): Promise<string> {
+  const dir = cacheDir()
+  await fs.mkdir(dir, { recursive: true })
+  return dir
+}
+
 function maxBytes(): number {
   return Number(process.env.SEGMENT_CACHE_MAX_MB ?? 2048) * 1048576
 }
@@ -35,6 +46,11 @@ function safeKey(key: string): string {
 
 // Coalesce concurrent misses for the same key into one origin fetch.
 const inflight = new Map<string, Promise<string>>()
+
+/** LRU prune the disk cache to SEGMENT_CACHE_MAX_MB (default 2048). */
+export async function pruneCache(): Promise<void> {
+  await prune(cacheDir())
+}
 
 async function prune(dir: string): Promise<void> {
   const cap = maxBytes()

@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/db/prisma'
 import { verifyPlaybackToken } from '@/lib/playback/token'
 import { getStorageProvider } from '@/lib/storage'
-import { getCachedPath, serveFile, fileResponse } from '@/lib/cache/origin'
+import { getOriginBytes, bufferResponse } from '@/lib/cache/supabase-hot'
 import { getUserPlan, qualityHeight } from '@/lib/subscriptions/access'
 import { checkRateLimit, rateLimitedResponse } from '@/lib/rate-limit'
 
@@ -53,12 +53,11 @@ export async function GET(req: NextRequest, ctx: Ctx) {
   try {
     const storage = getStorageProvider()
     const fileId = asset.telegramFileId
-    const path = await getCachedPath(`a-${asset.id}`, async () => {
+    const { bytes } = await getOriginBytes(asset.id, 'seg', fileId, 'video/MP2T', async () => {
       const up = await storage.downloadStream(fileId)
       return up.body
     })
-    const served = await serveFile(path, 'video/MP2T', req.headers.get('range'))
-    return fileResponse(served)
+    return bufferResponse(bytes, 'video/MP2T', req.headers.get('range'))
   } catch (err) {
     console.error('[stream] origin fetch failed:', (err as Error).message)
     return new Response('Origin unavailable', { status: 502 })
