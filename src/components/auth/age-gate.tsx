@@ -7,6 +7,7 @@ import {
   ShieldCheck, AlertTriangle, ChevronRight, EyeOff, Lock, Loader2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Logo } from '@/components/brand/logo'
 
 interface AgeGateProps {
   onConfirm: () => void
@@ -70,8 +71,8 @@ export function AgeGate({ onConfirm }: AgeGateProps) {
 
         {/* Header row */}
         <div className="mb-5 flex items-center gap-3.5">
-          <div className="animate-pulse-ring flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl gradient-primary">
-            <span className="text-2xl font-extrabold text-white">V</span>
+          <div className="animate-pulse-ring shrink-0 rounded-2xl">
+            <Logo size={56} rounded="rounded-2xl" />
           </div>
           <div className="min-w-0 text-left">
             <h1 className="gradient-text animate-gradient-x text-[22px] font-extrabold leading-tight">

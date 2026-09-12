@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db/prisma'
 import { verifySession } from '@/lib/auth/dal'
 import { getUserPlan } from '@/lib/subscriptions/access'
 import { SubscribeButton } from '@/components/premium/subscribe-button'
+import { Logo } from '@/components/brand/logo'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
@@ -29,8 +30,8 @@ export default async function PremiumPage() {
   return (
     <div className="mx-auto max-w-5xl px-4 sm:px-6 py-10">
       <div className="text-center mb-10">
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl gradient-primary">
-          <Crown className="h-7 w-7 text-white" />
+        <div className="mx-auto mb-4 w-fit">
+          <Logo size={72} rounded="rounded-3xl" />
         </div>
         <h1 className="text-3xl sm:text-4xl font-bold mb-2">
           Dark Hubb <span className="gradient-text">Premium</span>

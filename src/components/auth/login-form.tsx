@@ -5,6 +5,7 @@ import { Eye, EyeOff, LogIn, Shield } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Logo } from '@/components/brand/logo'
 import { login } from '@/actions/auth'
 
 export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
@@ -17,9 +18,7 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
           <Link href="/" className="flex items-center gap-2 mb-6">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl gradient-primary">
-              <span className="text-white font-bold">V</span>
-            </div>
+            <Logo size={40} />
             <span className="font-semibold text-xl gradient-text">Dark Hubb</span>
           </Link>
           <h1 className="text-xl font-bold">Welcome back</h1>

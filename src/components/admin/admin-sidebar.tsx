@@ -3,9 +3,10 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Users, Video, Flag, BadgeCheck,
-  FileText, BarChart2, Settings, Shield, ClipboardList, Copyright, LayoutGrid
+  FileText, BarChart2, Settings, ClipboardList, Copyright, LayoutGrid
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Logo } from '@/components/brand/logo'
 
 const NAV = [
   { href: '/admin', label: 'Overview', icon: LayoutDashboard },
@@ -27,9 +28,7 @@ export function AdminSidebar() {
     <aside className="fixed top-0 left-0 bottom-0 z-40 w-64 glass border-r border-white/6 flex flex-col hidden md:flex">
       {/* Logo */}
       <div className="flex h-16 items-center gap-2 px-5 border-b border-white/6">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg gradient-primary">
-          <Shield className="h-4 w-4 text-white" />
-        </div>
+        <Logo size={32} rounded="rounded-lg" />
         <div>
           <span className="font-semibold text-sm gradient-text">Dark Hubb</span>
           <div className="text-[10px] text-muted-foreground -mt-0.5">Admin Panel</div>

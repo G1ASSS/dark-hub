@@ -1,5 +1,6 @@
 import Link from 'next/link'
-import { Zap, Shield } from 'lucide-react'
+import { Shield } from 'lucide-react'
+import { Logo } from '@/components/brand/logo'
 
 export function Footer() {
   return (
@@ -8,9 +9,7 @@ export function Footer() {
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           {/* Brand */}
           <Link href="/home" className="flex items-center gap-2 group">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg gradient-primary">
-              <Zap className="h-3.5 w-3.5 text-white" fill="white" />
-            </div>
+            <Logo size={28} rounded="rounded-lg" />
             <span className="font-semibold gradient-text">Dark Hubb</span>
           </Link>
 

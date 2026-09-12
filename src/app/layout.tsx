@@ -15,6 +15,7 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.APP_BASE_URL ?? 'http://localhost:3000'),
   title: {
     default: 'Dark Hubb — Premium Adult Streaming',
     template: '%s | Dark Hubb',
@@ -36,13 +37,13 @@ export const metadata: Metadata = {
     siteName: 'Dark Hubb',
     title: 'Dark Hubb — Premium Adult Streaming',
     description: 'Premium 18+ streaming. Verified creators. Cinematic quality.',
-    images: [{ url: '/og-image.jpg', width: 1200, height: 630, alt: 'Dark Hubb' }],
+    images: [{ url: '/logo.png', width: 1254, height: 1254, alt: 'Dark Hubb' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Dark Hubb — Premium Adult Streaming',
     description: 'Premium 18+ streaming. Verified creators. Cinematic quality.',
-    images: ['/og-image.jpg'],
+    images: ['/logo.png'],
   },
 }
 
