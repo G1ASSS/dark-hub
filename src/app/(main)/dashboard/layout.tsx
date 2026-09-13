@@ -3,8 +3,6 @@ import { prisma } from '@/lib/db/prisma'
 import { verifySession, getUser } from '@/lib/auth/dal'
 import { getUserPlan } from '@/lib/subscriptions/access'
 import { AccountProvider } from '@/components/dashboard/account-context'
-import { AccountHero } from '@/components/dashboard/account-hero'
-import { AccountNav, AccountPageFade } from '@/components/dashboard/account-nav'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await verifySession()
@@ -39,13 +37,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           counts: { favorites: favCount, history: histCount, downloads: dlCount },
         }}
       >
-        <AccountHero />
-        <AccountNav />
-        <div className="mt-3 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] pb-8">
-          <AccountPageFade>
-            <div className="p-5 sm:p-6">{children}</div>
-          </AccountPageFade>
-        </div>
+        {children}
       </AccountProvider>
     </div>
   )
