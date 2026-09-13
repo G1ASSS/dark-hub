@@ -47,8 +47,10 @@ async function main() {
     {
       slug: 'premium',
       name: 'Premium',
-      priceCents: Number(process.env.PREMIUM_PRICE_CENTS ?? 999),
-      currency: 'USD',
+      // Fixed price: 6,900 MMK (whole kyat, no minor units — enforced
+      // server-side on every payment submission, never trusted from client).
+      priceCents: 6900,
+      currency: 'MMK',
       maxQuality: '1080p',
       allowDownload: true,
       dailyDownloadLimit: Number(process.env.PREMIUM_DAILY_DOWNLOAD_LIMIT ?? 20),

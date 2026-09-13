@@ -33,11 +33,16 @@ export function PremiumSection() {
             </p>
           </div>
         </div>
-        {initial.planSlug === 'free' && (
-          <Link href="/premium" className="relative mt-4 block">
-            <Button className="w-full btn-shine">Upgrade</Button>
-          </Link>
-        )}
+                            {initial.planSlug === 'free' && (
+                              <Link href="/premium/buy" className="relative mt-4 block">
+                                <Button className="w-full btn-shine">Buy Premium — 6,900 MMK</Button>
+                              </Link>
+                            )}
+                            {initial.planSlug !== 'free' && (
+                              <Link href="/premium/buy#history" className="relative mt-4 block text-center text-xs text-muted-foreground hover:text-foreground transition-colors">
+                                View payment history
+                              </Link>
+                            )}
       </div>
     </div>
   )

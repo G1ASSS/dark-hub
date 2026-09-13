@@ -3,7 +3,6 @@ import { Check, Crown, Play, Download, Gauge } from 'lucide-react'
 import { prisma } from '@/lib/db/prisma'
 import { verifySession } from '@/lib/auth/dal'
 import { getUserPlan } from '@/lib/subscriptions/access'
-import { SubscribeButton } from '@/components/premium/subscribe-button'
 import { Logo } from '@/components/brand/logo'
 import type { Metadata } from 'next'
 
@@ -17,6 +16,8 @@ export const dynamic = 'force-dynamic'
 
 function formatPrice(cents: number, currency: string): string {
   if (cents <= 0) return 'Free'
+  // MMK has no minor units — stored and shown as whole kyat.
+  if (currency === 'MMK') return `${cents.toLocaleString('en-US')} ${currency} / mo`
   return `${(cents / 100).toFixed(2)} ${currency} / mo`
 }
 
@@ -93,10 +94,15 @@ export default async function PremiumPage() {
               ) : isCurrent ? (
                 <p className="text-center text-sm text-emerald-300">You&apos;re premium — enjoy.</p>
               ) : session ? (
-                <SubscribeButton planSlug={plan.slug} planName={plan.name} />
+                <Link
+                  href="/premium/buy"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl gradient-primary px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110 transition-all"
+                >
+                  <Crown className="h-4 w-4" /> Buy {plan.name} — {formatPrice(plan.priceCents, plan.currency).replace(' / mo', '')}
+                </Link>
               ) : (
                 <Link
-                  href="/login?callbackUrl=/premium"
+                  href="/login?callbackUrl=/premium/buy"
                   className="flex w-full items-center justify-center gap-2 rounded-xl gradient-primary px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110 transition-all"
                 >
                   <Crown className="h-4 w-4" /> Sign in to go {plan.name}

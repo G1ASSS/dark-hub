@@ -23,16 +23,16 @@ export function getPaymentProvider(name?: string): PaymentProvider {
 
 /**
  * Activate (or extend) a subscription from a confirmed payment.
- * Shared by webhooks and future admin-confirm actions. Idempotent:
- * re-confirming an already SUCCEEDED transaction is a no-op.
+ * Shared by webhooks and admin manual-payment approval. Idempotent:
+ * re-confirming an already confirmed transaction is a no-op.
+ * Manual QR approvals keep status APPROVED; provider flows use SUCCEEDED.
  */
 export async function confirmTransaction(transactionId: string): Promise<{ subscriptionId: string }> {
   const tx = await prisma.paymentTransaction.findUnique({
     where: { id: transactionId },
   })
   if (!tx) throw new Error('Transaction not found')
-  if (tx.status === 'SUCCEEDED') {
-    if (!tx.subscriptionId) throw new Error('Transaction marked succeeded without a subscription')
+  if (tx.subscriptionId && (tx.status === 'SUCCEEDED' || tx.status === 'APPROVED')) {
     return { subscriptionId: tx.subscriptionId }
   }
 
@@ -79,7 +79,9 @@ export async function confirmTransaction(transactionId: string): Promise<{ subsc
 
   await prisma.paymentTransaction.update({
     where: { id: tx.id },
-    data: { status: 'SUCCEEDED', subscriptionId: subscription.id },
+    // Manual QR approvals keep their APPROVED status; everything else
+    // follows the legacy SUCCEEDED flow.
+    data: { status: tx.status === 'APPROVED' ? 'APPROVED' : 'SUCCEEDED', subscriptionId: subscription.id },
   })
   await prisma.auditLog.create({
     data: {

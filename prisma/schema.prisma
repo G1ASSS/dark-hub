@@ -98,7 +98,9 @@ enum SubscriptionStatus {
 enum PaymentStatus {
   PENDING
   SUCCEEDED
+  APPROVED
   FAILED
+  REJECTED
   REFUNDED
   CANCELED
 }
@@ -137,6 +139,7 @@ model User {
   paymentTransactions PaymentTransaction[]
   downloads         Download[]
   auditLogsActor    AuditLog[]           @relation("AuditActor")
+  reviewedPayments PaymentTransaction[] @relation("PaymentReviewer")
   moderationActions ModerationAction[]   @relation("Moderator")
   copyrightRequests CopyrightRequest[]   @relation("Requester")
 
@@ -555,13 +558,23 @@ model PaymentTransaction {
   currency       String        @default("USD")
   status         PaymentStatus @default(PENDING)
   raw            Json?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Manual QR payments (KBZ Pay / AYA Pay / UAB Pay): user-supplied proof,
+  // admin review trail. providerRef stays unique-safe; transactionRef is the
+  // (possibly colliding) bank reference / last digits the user typed.
+  transactionRef  String?
+  screenshotKey   String?
+  rejectionReason String?
+  reviewedById    String?
+  reviewedAt      DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   subscription   Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  reviewedBy     User?        @relation("PaymentReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([status])
+  @@index([provider, status])
   @@index([createdAt])
 }
 
