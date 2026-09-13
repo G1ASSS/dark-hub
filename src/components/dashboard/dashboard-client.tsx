@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   User, Heart, History, Crown, Lock,
-  Trash2, Download, Check, Loader2, ChevronDown, LogOut, Shield,
+  Trash2, Download, Check, Loader2, LogOut, Shield,
 } from 'lucide-react'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
@@ -39,11 +39,11 @@ export type DashboardInitial = {
 type SectionId = 'profile' | 'favorites' | 'history' | 'premium' | 'security'
 
 const SECTIONS: { id: SectionId; label: string; desc: string; icon: typeof User; tile: string }[] = [
-  { id: 'profile', label: 'Profile', desc: 'Name, avatar and bio', icon: User, tile: 'bg-violet-500/15 text-violet-300' },
-  { id: 'favorites', label: 'Favourites', desc: 'Videos you hearted', icon: Heart, tile: 'bg-rose-500/15 text-rose-300' },
-  { id: 'history', label: 'History', desc: 'What you watched', icon: History, tile: 'bg-cyan-500/15 text-cyan-300' },
-  { id: 'premium', label: 'Premium', desc: 'Plan and downloads', icon: Crown, tile: 'bg-amber-500/15 text-amber-300' },
-  { id: 'security', label: 'Security', desc: 'Password, 2FA and data', icon: Lock, tile: 'bg-emerald-500/15 text-emerald-300' },
+  { id: 'profile', label: 'Profile', desc: 'Name, avatar and bio', icon: User, tile: 'bg-cyan-500/10 text-cyan-300' },
+  { id: 'favorites', label: 'Favorites', desc: 'Videos you hearted', icon: Heart, tile: 'bg-rose-500/10 text-rose-300' },
+  { id: 'history', label: 'History', desc: 'What you watched', icon: History, tile: 'bg-violet-500/10 text-violet-300' },
+  { id: 'premium', label: 'Premium', desc: 'Plan and downloads', icon: Crown, tile: 'bg-amber-500/10 text-amber-300' },
+  { id: 'security', label: 'Security', desc: 'Password, 2FA and data', icon: Lock, tile: 'bg-emerald-500/10 text-emerald-300' },
 ]
 
 const AVATAR_STYLES = ['avataaars', 'personas', 'notionists', 'lorelei', 'adventurer', 'big-smile']
@@ -115,7 +115,7 @@ function PosterRail({ videos, emptyText }: { videos: VideoCardData[] | null; emp
 }
 
 export function DashboardClient({ initial }: { initial: DashboardInitial }) {
-  const [open, setOpen] = useState<SectionId | null>('profile')
+  const [tab, setTab] = useState<SectionId>('profile')
   const [favorites, setFavorites] = useState<VideoCardData[] | null>(null)
   const [history, setHistory] = useState<VideoCardData[] | null>(null)
   const [avatar, setAvatar] = useState(initial.avatarUrl ?? '')
@@ -133,15 +133,15 @@ export function DashboardClient({ initial }: { initial: DashboardInitial }) {
   const twoFA = justDisabled ? false : justEnabled ? true : initial.twoFactorEnabled
   const showQr = qr && !justEnabled ? qr : null
 
-  // Lazy-load lists when their section opens
+  // Lazy-load lists when their tab opens
   useEffect(() => {
-    if (open === 'favorites' && favorites === null) {
+    if (tab === 'favorites' && favorites === null) {
       fetch('/api/favorites').then((r) => r.json()).then((d) => setFavorites(d.data ?? [])).catch(() => setFavorites([]))
     }
-    if (open === 'history' && history === null) {
+    if (tab === 'history' && history === null) {
       fetch('/api/history').then((r) => r.json()).then((d) => setHistory(d.data ?? [])).catch(() => setHistory([]))
     }
-  }, [open, favorites, history])
+  }, [tab, favorites, history])
 
   const clearHistory = async () => {
     await fetch('/api/history', { method: 'DELETE' })
@@ -159,8 +159,6 @@ export function DashboardClient({ initial }: { initial: DashboardInitial }) {
     }
   }
 
-  const toggle = (id: SectionId) => setOpen((prev) => (prev === id ? null : id))
-
   return (
     <div className="mx-auto max-w-3xl px-4 sm:px-6 py-8">
       {/* ── Hero ─────────────────────────────────────────── */}
@@ -168,19 +166,19 @@ export function DashboardClient({ initial }: { initial: DashboardInitial }) {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-        className="relative mb-6 overflow-hidden rounded-[28px] border border-white/10"
+        className="relative mb-6 overflow-hidden rounded-[28px] border2 border-white/10"
       >
-        <div className="absolute inset-0 gradient-primary opacity-20" aria-hidden="true" />
+        <div className="absolute inset-0 gradient-primary opacity-15" aria-hidden="true" />
         <motion.div
           aria-hidden="true"
-          className="absolute -top-20 right-[10%] h-56 w-56 rounded-full bg-cyan-500/25 blur-3xl"
+          className="absolute -top-20 right-[10%] h-56 w-56 rounded-full bg-cyan-500/20 blur-3xl"
           animate={{ x: [0, -28, 0], y: [0, 18, 0] }}
-          transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
+          transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0F] via-[#0A0A0F]/40 to-transparent" aria-hidden="true" />
-        <div className="relative p-6">
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0F]/80 via-[#0A0A0F] to-transparent" aria-hidden="true" />
+        <div className="relative p-6 sm:p-8">
           <div className="flex items-center gap-4">
-            <div className="rounded-full bg-gradient-to-br from-violet-500 via-fuchsia-500 to-cyan-400 p-[3px] shrink-0">
+            <div className="rounded-full bg-gradient-to-br from-cyan-500 via-fuchsia-500 to-violet-500 p-[3px] shrink-0">
               <Avatar className="h-16 w-16 border-4 border-[#0A0A0F]">
                 {avatar ? <AvatarImage src={avatar} alt={initial.displayName} /> : null}
                 <AvatarFallback className="text-lg font-bold">{initials(initial.displayName)}</AvatarFallback>
@@ -189,12 +187,14 @@ export function DashboardClient({ initial }: { initial: DashboardInitial }) {
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="truncate text-xl font-bold">{initial.displayName}</h1>
-                <Badge variant={initial.planSlug === 'free' ? 'secondary' : 'hot'}>{initial.planName}</Badge>
-                {initial.role !== 'USER' && <Badge variant="verified">{initial.role}</Badge>}
+                <Badge variant={initial.planSlug === 'free' ? 'secondary' : 'hot'} className="inline-flex items-center px-2.5 py-0.5 rounded text-[10px]">
+                  {initial.planName}
+                </Badge>
+                {initial.role !== 'USER' && <Badge variant="verified" className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded text-[10px]">{initial.role}</Badge>}
               </div>
               <p className="truncate text-sm text-muted-foreground">@{initial.username}</p>
             </div>
-            <form action={logout}>
+            <form action={logout} className="ml-6">
               <button
                 aria-label="Sign out"
                 className="flex h-10 w-10 items-center justify-center rounded-full border border-rose-500/25 bg-rose-500/10 text-rose-400 transition-all hover:scale-105 hover:bg-rose-500/20"
@@ -203,71 +203,75 @@ export function DashboardClient({ initial }: { initial: DashboardInitial }) {
               </button>
             </form>
           </div>
-          <div className="mt-4 flex gap-7">
+          <div className="mt-6 sm:mt-8 flex gap-7 sm:gap-8">
             {[
               { label: 'favourites', value: initial.counts.favorites },
               { label: 'watched', value: initial.counts.history },
               { label: 'downloads', value: initial.counts.downloads },
             ].map((s) => (
-              <div key={s.label}>
+              <div key={s.label} className="flex items-center gap-2">
                 <div className="text-xl font-bold tabular-nums">
                   <CountUp value={s.value} />
                 </div>
-                <div className="text-[11px] uppercase tracking-wider text-muted-foreground">{s.label}</div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{s.label}</div>
               </div>
             ))}
           </div>
           {initial.planSlug === 'free' && (
-            <Link href="/premium" className="mt-4 block">
+            <Link href="/premium" className="mt-4 sm:mt-0 block">
               <Button className="w-full gap-2 btn-shine"><Crown className="h-4 w-4" /> Go Premium</Button>
             </Link>
           )}
         </div>
       </motion.div>
 
-      {/* ── Accordion sections ───────────────────────────── */}
-      <div className="space-y-3 pb-8">
-        {SECTIONS.map((s, i) => {
-          const Icon = s.icon
-          const isOpen = open === s.id
-          return (
-            <motion.div
-              key={s.id}
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.05 * i, duration: 0.35 }}
-              className={cn(
-                'overflow-hidden rounded-3xl border transition-colors',
-                isOpen ? 'border-white/15 bg-white/[0.04]' : 'border-white/[0.07] bg-white/[0.02] hover:border-white/15'
-              )}
-            >
+      {/* ── Tab bar ──────────────────────────────────────── */}
+      <div className="sticky top-3 z-30 -mx-4 px-4 sm:mx-0 sm:px-0">
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          role="tablist"
+          aria-label="Account sections"
+          className="flex gap-1 overflow-x-auto rounded-full border border-white/10 bg-[#121218]/90 p-1.5 shadow-2xl shadow-black/50 backdrop-blur-xl"
+          style={{ scrollbarWidth: 'none' }}
+        >
+          {SECTIONS.map((s) => {
+            const Icon = s.icon
+            const active = tab === s.id
+            return (
               <button
-                onClick={() => toggle(s.id)}
-                aria-expanded={isOpen}
-                className="flex w-full items-center gap-3 p-4 text-left"
+                key={s.id}
+                role="tab"
+                aria-selected={active}
+                onClick={() => setTab(s.id)}
+                className={cn(
+                  'flex shrink-0 items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold transition-all',
+                  active
+                    ? 'bg-gradient-to-r from-cyan-400 to-violet-500 text-white shadow-lg shadow-violet-500/25'
+                    : 'text-white/55 hover:bg-white/5 hover:text-white'
+                )}
               >
-                <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-xl', s.tile)}>
-                  <Icon className="h-5 w-5" />
-                </span>
-                <span className="flex-1 min-w-0">
-                  <span className="block text-[15px] font-bold">{s.label}</span>
-                  <span className="block truncate text-xs text-muted-foreground">{s.desc}</span>
-                </span>
-                <motion.span animate={{ rotate: isOpen ? 180 : 0 }} transition={{ duration: 0.25 }}>
-                  <ChevronDown className={cn('h-5 w-5', isOpen ? 'text-white' : 'text-muted-foreground')} />
-                </motion.span>
+                <Icon className="h-4 w-4" />
+                {s.label}
               </button>
+            )
+          })}
+        </motion.div>
+      </div>
 
-              <AnimatePresence initial={false}>
-                {isOpen && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ type: 'spring', stiffness: 300, damping: 32 }}
-                  >
-                    <div className="border-t border-white/[0.07] p-4 sm:p-5">
-                      {s.id === 'profile' && (
+      {/* ── Active panel ───────────────────────────────────── */}
+      <div className="mt-3 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] pb-8">
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={tab}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.22 }}
+          >
+            <div className="p-5 sm:p-6">
+                      {tab === 'profile' && (
                         <form action={profileAction} className="space-y-5">
                           <div>
                             <Label className="mb-2 block">Avatar</Label>
@@ -330,11 +334,11 @@ export function DashboardClient({ initial }: { initial: DashboardInitial }) {
                         </form>
                       )}
 
-                      {s.id === 'favorites' && (
+                      {tab === 'favorites' && (
                         <PosterRail videos={favorites} emptyText="Tap the heart on any video to save it here." />
                       )}
 
-                      {s.id === 'history' && (
+                      {tab === 'history' && (
                         <div>
                           {(history?.length ?? 0) > 0 && (
                             <div className="mb-3 flex justify-end">
@@ -347,7 +351,7 @@ export function DashboardClient({ initial }: { initial: DashboardInitial }) {
                         </div>
                       )}
 
-                      {s.id === 'premium' && (
+                      {tab === 'premium' && (
                         <div className="space-y-4">
                           <div className="relative overflow-hidden rounded-2xl border border-violet-500/25 p-5">
                             <div className="absolute inset-0 gradient-primary opacity-15" aria-hidden="true" />
@@ -381,7 +385,7 @@ export function DashboardClient({ initial }: { initial: DashboardInitial }) {
                         </div>
                       )}
 
-                      {s.id === 'security' && (
+                      {tab === 'security' && (
                         <div className="space-y-6">
                           <form action={passAction}>
                             <h3 className="mb-3 text-sm font-bold">Change Password</h3>
@@ -458,12 +462,8 @@ export function DashboardClient({ initial }: { initial: DashboardInitial }) {
                         </div>
                       )}
                     </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
-          )
-        })}
+          </motion.div>
+        </AnimatePresence>
       </div>
     </div>
   )

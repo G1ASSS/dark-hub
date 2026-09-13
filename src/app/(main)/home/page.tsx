@@ -64,7 +64,7 @@ export default function HomePage() {
     const t = setInterval(() => {
       if (Date.now() - lastInteract.current < 10000) return
       setHeroIdx((i) => (i + 1) % hero.length)
-    }, 3000)
+    }, 1000)
     return () => clearInterval(t)
   }, [hero.length])
 
@@ -188,7 +188,7 @@ export default function HomePage() {
                   <Link
                     key={`${item.kind}-${item.id}`}
                     href={item.href}
-                    className="group relative shrink-0 w-[86%] sm:w-[72%] lg:w-[60%] snap-center rounded-3xl overflow-hidden aspect-video"
+                    className="group relative shrink-0 w-[86%] sm:w-[64%] lg:w-[46%] snap-center rounded-3xl overflow-hidden aspect-video"
                   >
                     <Image
                       src={item.image ?? ''}
@@ -196,7 +196,7 @@ export default function HomePage() {
                       fill
                       className="object-cover transition-transform duration-700 group-hover:scale-105"
                       priority={false}
-                      sizes="(max-width: 640px) 86vw, 60vw"
+                      sizes="(max-width: 640px) 86vw, (max-width: 1024px) 64vw, 46vw"
                       unoptimized
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
