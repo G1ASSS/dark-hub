@@ -23,6 +23,10 @@ export type ManualPayMethod = {
   /** App name shown in instructions ("Open KBZPay."). */
   appName: string
   accent: string
+  /** Tile background behind the logo. */
+  logoBg: string
+  /** How the logo fills its square tile (wide lockups use contain). */
+  logoFit: 'cover' | 'contain'
 }
 
 export const MANUAL_PAY_METHODS: ManualPayMethod[] = [
@@ -34,6 +38,8 @@ export const MANUAL_PAY_METHODS: ManualPayMethod[] = [
     qr: '/qrcode/kbz.jpg',
     appName: 'KBZPay',
     accent: 'border-sky-500/30 bg-sky-500/10 text-sky-300',
+    logoBg: 'bg-white',
+    logoFit: 'cover',
   },
   {
     id: 'aya_pay',
@@ -43,6 +49,8 @@ export const MANUAL_PAY_METHODS: ManualPayMethod[] = [
     qr: '/qrcode/aya.jpg',
     appName: 'AYA Pay',
     accent: 'border-rose-500/30 bg-rose-500/10 text-rose-300',
+    logoBg: 'bg-white',
+    logoFit: 'cover',
   },
   {
     id: 'uab_pay',
@@ -52,6 +60,8 @@ export const MANUAL_PAY_METHODS: ManualPayMethod[] = [
     qr: '/qrcode/uab.jpg',
     appName: 'UAB Pay',
     accent: 'border-amber-500/30 bg-amber-500/10 text-amber-300',
+    logoBg: 'bg-black',
+    logoFit: 'contain',
   },
 ]
 
