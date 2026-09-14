@@ -1,10 +1,8 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/db/prisma'
-import { verifySession } from '@/lib/auth/dal'
+import { requireUploader, uploaderErrorStatus } from '@/lib/auth/upload-access'
 import { checkRateLimit, rateLimitedResponse } from '@/lib/rate-limit'
-
-export const runtime = 'nodejs'
 
 const bodySchema = z.object({
   title: z.string().min(3).max(100),
@@ -22,8 +20,13 @@ const bodySchema = z.object({
  * and finishes with /api/upload/complete.
  */
 export async function POST(req: NextRequest) {
-  const session = await verifySession()
-  if (!session) return Response.json({ error: 'Sign in to upload.' }, { status: 401 })
+  let session
+  try {
+    session = await requireUploader()
+  } catch (err) {
+    const { status, message } = uploaderErrorStatus(err)
+    return Response.json({ error: message }, { status })
+  }
 
   const rl = await checkRateLimit(`upload-init:${session.userId}`, 10, 3600)
   if (!rl.allowed) return rateLimitedResponse(rl)

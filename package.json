@@ -21,7 +21,8 @@
     "thumb:backfill": "tsx --env-file=.env.local --import ./scripts/preload.mjs scripts/backfill-thumbnail.mts",
     "cache:warm": "tsx --env-file=.env.local --import ./scripts/preload.mjs scripts/warm-cache.mts",
     "demo:seed": "tsx --env-file=.env.local --import ./scripts/preload.mjs scripts/seed-demo.mts",
-    "demo:clear": "tsx --env-file=.env.local --import ./scripts/preload.mjs scripts/clear-demo.mts"
+    "demo:clear": "tsx --env-file=.env.local --import ./scripts/preload.mjs scripts/clear-demo.mts",
+    "upload:local": "tsx --env-file=.env.local --import ./scripts/preload.mjs scripts/upload-local.mts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.3",

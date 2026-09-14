@@ -71,6 +71,8 @@ export default function UploadPage() {
     }
   }
 
+  const CHUNK_SIZE = 4 * 1024 * 1024 // 4MB: under serverless body limits (~4.5MB)
+
   const uploadBytes = (videoId: string, f: File) =>
     new Promise<void>((resolve, reject) => {
       const xhr = new XMLHttpRequest()
@@ -85,15 +87,50 @@ export default function UploadPage() {
         else {
           try {
             const data = JSON.parse(xhr.responseText)
-            reject(new Error(data.error ?? `Upload failed (${xhr.status})`))
+            reject(new Error(friendlyUploadError(data.error, xhr.status)))
           } catch {
-            reject(new Error(`Upload failed (${xhr.status})`))
+            reject(new Error(friendlyUploadError(null, xhr.status)))
           }
         }
       }
       xhr.onerror = () => reject(new Error('Network error during upload — try again'))
       xhr.send(f)
     })
+
+  // Large files are split into 4MB chunks so each request stays under
+  // serverless body limits. Chunks upload sequentially with retries.
+  const uploadChunked = async (videoId: string, f: File) => {
+    const total = Math.max(1, Math.ceil(f.size / CHUNK_SIZE))
+    let sent = 0
+    for (let i = 0; i < total; i++) {
+      const blob = f.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE)
+      let attempt = 0
+      for (;;) {
+        const res = await fetch(
+          `/api/upload/chunk?videoId=${encodeURIComponent(videoId)}&index=${i}&total=${total}`,
+          { method: 'POST', headers: { 'x-mime-type': f.type || 'video/mp4' }, body: blob }
+        )
+        if (res.ok) break
+        const msg = await apiError(res, `Chunk ${i + 1}/${total} failed`)
+        // Auth/permission/session errors are not retryable.
+        if (res.status === 401 || res.status === 403 || res.status === 410) {
+          throw new Error(msg)
+        }
+        attempt += 1
+        if (attempt >= 3) throw new Error(friendlyUploadError(msg, res.status))
+        await sleep(1000 * attempt)
+      }
+      sent += blob.size
+      setProgress(Math.round((sent / f.size) * 100))
+    }
+  }
+
+  const friendlyUploadError = (serverMsg: string | null, status: number): string => {
+    if (status === 413) {
+      return 'Upload rejected (413): file too large for a single request. The uploader now splits files into 4MB chunks automatically — retry, or for 500MB+ files on hosted deployments use the local upload script (npm run upload:local).'
+    }
+    return serverMsg ?? `Upload failed (${status})`
+  }
 
   // Watch the worker until it finishes (transcoding real files takes minutes).
   const pollUntilDone = async (videoId: string) => {
@@ -152,8 +189,12 @@ export default function UploadPage() {
       if (!initRes.ok) throw new Error(await apiError(initRes, 'Could not start upload'))
       const { videoId } = (await initRes.json()) as { videoId: string }
 
-      // 2. Stream the bytes (real progress via XHR)
-      await uploadBytes(videoId, file)
+      // 2. Stream the bytes (chunked for large files, single-shot for small)
+      if (file.size > CHUNK_SIZE * 1.5) {
+        await uploadChunked(videoId, file)
+      } else {
+        await uploadBytes(videoId, file)
+      }
 
       // 3. Confirm + queue for processing
       const doneRes = await fetch('/api/upload/complete', {
@@ -179,7 +220,7 @@ export default function UploadPage() {
     <div className="mx-auto max-w-3xl px-4 sm:px-6 py-8">
       <h1 className="text-2xl font-bold mb-2">Upload Video</h1>
       <p className="text-sm text-muted-foreground mb-8">
-        Share your content with the Dark Hubb community. Verified creators only.
+        Share your content with the Dark Hubb community. Owner uploads only.
       </p>
 
       {/* Consent notice */}
@@ -243,7 +284,7 @@ export default function UploadPage() {
               <>
                 <Upload className="h-12 w-12 text-muted-foreground mb-3" />
                 <p className="font-medium text-sm">Drop your video here, or click to browse</p>
-                <p className="text-xs text-muted-foreground mt-1">MP4, WebM, MOV, MKV · Max 5 GB</p>
+                <p className="text-xs text-muted-foreground mt-1">MP4, WebM, MOV, MKV · Max 5 GB · large files upload in 4MB chunks</p>
               </>
             )}
           </div>

@@ -105,6 +105,7 @@ export async function processVideo(videoId: string): Promise<ProcessResult> {
     const storage = getStorageProvider()
     const rungs = ladderForSource(source.height || 1080)
     const highest = rungs[rungs.length - 1]
+    const mp4Skipped: string[] = []
     let segmentCount = 0
     let thumbnailUrl: string | null = null
 
@@ -115,38 +116,48 @@ export async function processVideo(videoId: string): Promise<ProcessResult> {
         fs.stat(mp4Path),
         sha256File(mp4Path),
       ])
-      const mp4 = await storage.uploadFile({
-        filePath: mp4Path,
-        fileName: `${videoId}-${rung.label}.mp4`,
-        mimeType: 'video/mp4',
-        caption: `${video.title} [${rung.label}]`,
-        asVideo: true,
-      })
-      await prisma.videoAsset.create({
-        data: {
-          videoId,
-          type: 'MP4',
-          storageKey: `${videoId}/${rung.label}.mp4`,
-          size: BigInt(mp4Stat.size),
+      // MP4 origin copies back downloads. Telegram caps single sends
+      // (~50MB): large sources (1GB+) exceed it on high rungs. That must
+      // not fail the job — HLS segments are small and stream fine, so the
+      // MP4 upload is best-effort and downloads for that quality report
+      // "not available" until re-processed with a lower ladder.
+      try {
+        const mp4 = await storage.uploadFile({
+          filePath: mp4Path,
+          fileName: `${videoId}-${rung.label}.mp4`,
           mimeType: 'video/mp4',
-          telegramChatId: mp4.chatId,
-          telegramMessageId: mp4.messageId,
-          telegramFileId: mp4.fileId,
-          fileSize: mp4.fileSize,
-          duration: Math.round(source.duration),
-          resolution: `${rung.width}x${rung.height}`,
-          quality: rung.label,
-          checksum: mp4Checksum,
-          storageStatus: 'STORED',
-        },
-      }).then(async (row) => {
-        // Hot cache for instant playback everywhere (best-effort).
-        try {
-          await hotPut(row.id, 'mp4', await fs.readFile(mp4Path), 'video/mp4')
-        } catch (err) {
-          console.warn('[pipeline] hot cache mp4 skipped:', (err as Error).message)
-        }
-      })
+          caption: `${video.title} [${rung.label}]`,
+          asVideo: true,
+        })
+        await prisma.videoAsset.create({
+          data: {
+            videoId,
+            type: 'MP4',
+            storageKey: `${videoId}/${rung.label}.mp4`,
+            size: BigInt(mp4Stat.size),
+            mimeType: 'video/mp4',
+            telegramChatId: mp4.chatId,
+            telegramMessageId: mp4.messageId,
+            telegramFileId: mp4.fileId,
+            fileSize: mp4.fileSize,
+            duration: Math.round(source.duration),
+            resolution: `${rung.width}x${rung.height}`,
+            quality: rung.label,
+            checksum: mp4Checksum,
+            storageStatus: 'STORED',
+          },
+        }).then(async (row) => {
+          // Hot cache for instant playback everywhere (best-effort).
+          try {
+            await hotPut(row.id, 'mp4', await fs.readFile(mp4Path), 'video/mp4')
+          } catch (err) {
+            console.warn('[pipeline] hot cache mp4 skipped:', (err as Error).message)
+          }
+        })
+      } catch (err) {
+        mp4Skipped.push(rung.label)
+        console.warn(`[pipeline] MP4 origin upload skipped for ${rung.label}:`, (err as Error).message)
+      }
       await prisma.videoQuality.upsert({
         where: { videoId_resolution: { videoId, resolution: rung.label } },
         update: { width: rung.width, height: rung.height, bitrate: rung.bitrate, playlistKey: `${videoId}/${rung.label}/index.m3u8` },
@@ -263,7 +274,7 @@ export async function processVideo(videoId: string): Promise<ProcessResult> {
         action: 'VIDEO_PROCESSED',
         targetType: 'VIDEO',
         targetId: videoId,
-        metadata: { renditions: rungs.map((r) => r.label), segments: segmentCount },
+        metadata: { renditions: rungs.map((r) => r.label), segments: segmentCount, mp4Skipped },
       },
     })
 

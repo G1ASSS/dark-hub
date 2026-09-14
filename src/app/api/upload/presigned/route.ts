@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { requireUploader, uploaderErrorStatus } from '@/lib/auth/upload-access'
 
 const ALLOWED_TYPES = ['video/mp4','video/quicktime','video/x-msvideo','video/webm','video/mpeg']
 const MAX_SIZE = parseInt(process.env.MAX_VIDEO_SIZE_BYTES ?? '5368709120', 10)
 const schema = z.object({ fileName: z.string().min(1).max(255), mimeType: z.string(), fileSize: z.number().int().positive() })
 
 export async function POST(req: NextRequest) {
+  try {
+    await requireUploader()
+  } catch (err) {
+    const { status, message } = uploaderErrorStatus(err)
+    return NextResponse.json({ error: message }, { status })
+  }
   try {
     const body = await req.json()
     const data = schema.safeParse(body)

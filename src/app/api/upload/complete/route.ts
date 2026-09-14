@@ -1,10 +1,10 @@
 import { NextRequest } from 'next/server'
 import { promises as fs } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { z } from 'zod'
 import { prisma } from '@/lib/db/prisma'
-import { verifySession } from '@/lib/auth/dal'
-
-export const runtime = 'nodejs'
+import { requireUploader, uploaderErrorStatus } from '@/lib/auth/upload-access'
 
 const bodySchema = z.object({
   videoId: z.string().min(1),
@@ -22,8 +22,13 @@ const bodySchema = z.object({
  * (POST /api/worker/process), not in this request.
  */
 export async function POST(req: NextRequest) {
-  const session = await verifySession()
-  if (!session) return Response.json({ error: 'Sign in to upload.' }, { status: 401 })
+  let session
+  try {
+    session = await requireUploader()
+  } catch (err) {
+    const { status, message } = uploaderErrorStatus(err)
+    return Response.json({ error: message }, { status })
+  }
 
   const parsed = bodySchema.safeParse(await req.json().catch(() => ({})))
   if (!parsed.success) {
@@ -60,6 +65,9 @@ export async function POST(req: NextRequest) {
   await prisma.auditLog.create({
     data: { actorId: session.userId, action: 'VIDEO_UPLOAD_COMPLETE', targetType: 'VIDEO', targetId: videoId },
   })
+  // Chunked-upload cursor is single-use; remove best-effort.
+  const tmpRoot = process.env.UPLOAD_TMP_DIR || join(tmpdir(), 'darkhubb-uploads')
+  await fs.rm(join(tmpRoot, `${videoId}.cursor`), { force: true }).catch(() => {})
 
   return Response.json({ videoId, status: 'PROCESSING' })
 }

@@ -1,8 +1,7 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/db/prisma'
 import { verifySession } from '@/lib/auth/dal'
-
-export const runtime = 'nodejs'
+import { isUploader } from '@/lib/auth/upload-access'
 
 /**
  * Owner-facing processing status for one upload.
@@ -31,7 +30,8 @@ export async function GET(req: NextRequest) {
 
   const isOwner = video.creator.userId === session.userId
   const isStaff = ['ADMIN', 'MODERATOR'].includes(session.role)
-  if (!isOwner && !isStaff) return Response.json({ error: 'Forbidden' }, { status: 403 })
+  const canUpload = await isUploader(session)
+  if (!isOwner && !isStaff && !canUpload) return Response.json({ error: 'Forbidden' }, { status: 403 })
 
   return Response.json({
     videoId: video.id,

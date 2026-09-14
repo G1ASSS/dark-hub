@@ -1,6 +1,6 @@
-import { requireAdmin } from '@/lib/auth/dal'
+import { requireUploaderPage } from '@/lib/auth/upload-access'
 
 export default async function UploadLayout({ children }: { children: React.ReactNode }) {
-  await requireAdmin()
+  await requireUploaderPage()
   return <>{children}</>
 }
