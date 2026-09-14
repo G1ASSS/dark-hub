@@ -4,6 +4,8 @@ import { prisma } from '@/lib/db/prisma'
 import { verifySession } from '@/lib/auth/dal'
 import { checkRateLimit, rateLimitedResponse } from '@/lib/rate-limit'
 
+export const runtime = 'nodejs'
+
 const bodySchema = z.object({
   title: z.string().min(3).max(100),
   description: z.string().max(2000).optional(),

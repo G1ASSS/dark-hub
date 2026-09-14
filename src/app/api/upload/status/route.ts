@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/db/prisma'
 import { verifySession } from '@/lib/auth/dal'
 
+export const runtime = 'nodejs'
+
 /**
  * Owner-facing processing status for one upload.
  * The upload page polls this after /complete until the video reaches

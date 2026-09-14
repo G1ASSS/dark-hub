@@ -8,6 +8,8 @@ import { prisma } from '@/lib/db/prisma'
 import { verifySession } from '@/lib/auth/dal'
 import { checkRateLimit, rateLimitedResponse } from '@/lib/rate-limit'
 
+export const runtime = 'nodejs'
+
 const ALLOWED_VIDEO_MIME = new Set([
   'video/mp4',
   'video/webm',

@@ -4,6 +4,8 @@ import { z } from 'zod'
 import { prisma } from '@/lib/db/prisma'
 import { verifySession } from '@/lib/auth/dal'
 
+export const runtime = 'nodejs'
+
 const bodySchema = z.object({
   videoId: z.string().min(1),
   // Client-measured size (required). Client checksum is optional: when the
