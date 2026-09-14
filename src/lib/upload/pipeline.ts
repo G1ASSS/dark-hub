@@ -259,6 +259,20 @@ export async function processVideo(videoId: string): Promise<ProcessResult> {
       where: { id: original.id },
       data: { storageStatus: 'DELETED' },
     })
+    // Free staging disk: the source copy is fully replaced by Telegram
+    // origin assets now. Only delete inside the tmp root (never user files)
+    // and best-effort so cleanup can never fail publishing. Without this,
+    // batch uploads of tens of GB would fill the disk.
+    try {
+      const tmpRoot = process.env.UPLOAD_TMP_DIR || join(tmpdir(), 'darkhubb-uploads')
+      const root = await fs.realpath(tmpRoot).catch(() => tmpRoot)
+      const prefix = root.endsWith('/') ? root : `${root}/`
+      if (original.storageKey.startsWith(prefix)) {
+        await fs.rm(original.storageKey, { force: true })
+      }
+    } catch (err) {
+      console.warn('[pipeline] staged source cleanup skipped:', (err as Error).message)
+    }
     await prisma.video.update({
       where: { id: videoId },
       data: {

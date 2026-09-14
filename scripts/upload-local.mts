@@ -1,5 +1,5 @@
 /**
- * Owner-only local upload for large files (500MB–5GB).
+ * Owner-only local upload for large files (500MB–5GB) and batch imports.
  *
  * Why this exists: hosted serverless deployments (e.g. Vercel) cap request
  * bodies (~4.5MB), /tmp disk (~512MB) and function runtime, so gigabyte
@@ -8,16 +8,24 @@
  * (Supabase .env.local) and Telegram origin — published videos stream from
  * production immediately.
  *
+ * Single file:
  *   npm run upload:local -- <file.mp4> --title "My video" [--description "..."]
  *     [--categories cat1,cat2] [--tags a,b] [--approve]
  *
- * --approve also publishes (skips the PENDING_REVIEW queue). Otherwise the
+ * Whole folder (50GB+ batch — videos processed one by one, failures are
+ * logged and skipped, staging disk is freed after each video):
+ *   npm run upload:local -- ./my-videos/ [--categories cat1] [--approve]
+ *
+ * --approve also publishes (skips the PENDING_REVIEW queue). Otherwise each
  * video lands in PENDING_REVIEW for the normal admin moderation flow.
+ *
+ * Tip: run batches in the background — 50GB takes many hours:
+ *   nohup npm run upload:local -- ./my-videos/ --approve > upload.log 2>&1 &
  */
 import { createHash } from 'node:crypto'
 import { createReadStream, createWriteStream, promises as fs } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, basename } from 'node:path'
+import { join, basename, extname } from 'node:path'
 import { prisma } from '../src/lib/db/prisma'
 import { processVideo } from '../src/lib/upload/pipeline'
 
@@ -28,37 +36,60 @@ function arg(flag: string): string | undefined {
   return i >= 0 ? process.argv[i + 1] : undefined
 }
 
-const fileArg = process.argv.slice(2).find((a) => !a.startsWith('--'))
-const title = arg('--title')
-const approve = process.argv.includes('--approve')
+function titleFor(filePath: string, explicit: string | undefined, batch: boolean): string {
+  if (explicit && !batch) return explicit
+  if (explicit && batch) return explicit
+  // Batch default: filename without extension, truncated to 100 chars.
+  return basename(filePath).replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim().slice(0, 100) || 'Untitled'
+}
 
-if (!fileArg || !title) {
+const fileArg = process.argv.slice(2).find((a) => !a.startsWith('--'))
+const explicitTitle = arg('--title')
+const approve = process.argv.includes('--approve')
+const description = arg('--description')?.slice(0, 2000) || null
+const catSlugs = (arg('--categories') ?? '').split(',').map((s) => s.trim()).filter(Boolean).slice(0, 5)
+const tagRaws = (arg('--tags') ?? '').split(',').map((s) => s.trim()).filter(Boolean).slice(0, 10)
+
+if (!fileArg) {
   console.error(
-    'Usage: upload-local.mts <file.mp4> --title "Title" [--description "..."] [--categories a,b] [--tags x,y] [--approve]'
+    'Usage: upload-local.mts <file.mp4|directory/> --title "Title" [--description "..."] [--categories a,b] [--tags x,y] [--approve]'
   )
   process.exit(1)
 }
-if (title.length < 3 || title.length > 100) {
-  console.error('Title must be 3–100 characters.')
+
+const targetStat = await fs.stat(fileArg).catch(() => null)
+if (!targetStat) {
+  console.error(`Not found: ${fileArg}`)
   process.exit(1)
 }
 
-const ext = fileArg.slice(fileArg.lastIndexOf('.')).toLowerCase()
-if (!ALLOWED_EXT.has(ext)) {
-  console.error(`Unsupported extension ${ext}. Allowed: ${[...ALLOWED_EXT].join(', ')}`)
-  process.exit(1)
+let files: string[]
+let batch = false
+if (targetStat.isDirectory()) {
+  const entries = await fs.readdir(fileArg)
+  files = entries
+    .filter((e) => ALLOWED_EXT.has(extname(e).toLowerCase()))
+    .sort()
+    .map((e) => join(fileArg, e))
+  batch = true
+  if (files.length === 0) {
+    console.error(`No video files (.mp4/.webm/.mov/.mkv) in ${fileArg}`)
+    process.exit(1)
+  }
+  console.log(`Batch: ${files.length} video(s) in ${fileArg}`)
+} else {
+  if (!ALLOWED_EXT.has(extname(fileArg).toLowerCase())) {
+    console.error(`Unsupported extension. Allowed: ${[...ALLOWED_EXT].join(', ')}`)
+    process.exit(1)
+  }
+  if (!explicitTitle || explicitTitle.length < 3 || explicitTitle.length > 100) {
+    console.error('Single-file upload needs --title "3–100 chars" (batch mode titles from filenames).')
+    process.exit(1)
+  }
+  files = [fileArg]
 }
 
-const stat = await fs.stat(fileArg).catch(() => null)
-if (!stat?.isFile()) {
-  console.error(`File not found: ${fileArg}`)
-  process.exit(1)
-}
 const maxBytes = Number(process.env.MAX_VIDEO_SIZE_BYTES ?? 5368709120)
-if (stat.size > maxBytes) {
-  console.error(`File ${(stat.size / 1073741824).toFixed(2)}GB exceeds the ${(maxBytes / 1073741824).toFixed(1)}GB limit.`)
-  process.exit(1)
-}
 
 // Owner = first ADMIN (same identity the upload API gates to).
 const owner = await prisma.user.findFirst({
@@ -67,15 +98,16 @@ const owner = await prisma.user.findFirst({
   select: { id: true, email: true, username: true },
 })
 if (!owner) throw new Error('No ADMIN user found — seed the database first.')
+const ownerId = owner.id
 
-let creator = await prisma.creator.findUnique({ where: { userId: owner.id }, select: { id: true } })
+let creator = await prisma.creator.findUnique({ where: { userId: ownerId }, select: { id: true } })
 if (!creator) {
-  const profile = await prisma.profile.findUnique({ where: { userId: owner.id } })
+  const profile = await prisma.profile.findUnique({ where: { userId: ownerId } })
   creator = await prisma.creator.create({
     data: {
-      userId: owner.id,
+      userId: ownerId,
       displayName: profile?.displayName ?? owner.username ?? 'Owner',
-      slug: `staff-${owner.id.slice(0, 8).toLowerCase()}`,
+      slug: `staff-${ownerId.slice(0, 8).toLowerCase()}`,
       verificationStatus: 'APPROVED',
       isVerified: true,
     },
@@ -83,99 +115,124 @@ if (!creator) {
   })
   console.log('Created staff creator profile for owner.')
 }
+const creatorId = creator.id
 
-const video = await prisma.video.create({
-  data: {
-    creatorId: creator.id,
-    title,
-    description: arg('--description')?.slice(0, 2000) || null,
-    status: 'UPLOADING',
-  },
-  select: { id: true },
-})
-
-// Link categories that exist; upsert tags.
-const catSlugs = (arg('--categories') ?? '').split(',').map((s) => s.trim()).filter(Boolean).slice(0, 5)
-if (catSlugs.length > 0) {
-  const cats = await prisma.category.findMany({
-    where: { slug: { in: catSlugs }, isActive: true },
-    select: { id: true },
-  })
-  if (cats.length > 0) {
-    await prisma.videoCategory.createMany({
-      data: cats.map((c) => ({ videoId: video.id, categoryId: c.id })),
-      skipDuplicates: true,
+async function linkTaxonomy(videoId: string) {
+  if (catSlugs.length > 0) {
+    const cats = await prisma.category.findMany({
+      where: { slug: { in: catSlugs }, isActive: true },
+      select: { id: true },
+    })
+    if (cats.length > 0) {
+      await prisma.videoCategory.createMany({
+        data: cats.map((c) => ({ videoId, categoryId: c.id })),
+        skipDuplicates: true,
+      })
+    }
+  }
+  for (const raw of tagRaws) {
+    const slug = raw.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+    if (!slug) continue
+    const tag = await prisma.tag.upsert({
+      where: { slug },
+      update: {},
+      create: { name: raw.slice(0, 50), slug },
+      select: { id: true },
+    })
+    await prisma.videoTag.upsert({
+      where: { videoId_tagId: { videoId, tagId: tag.id } },
+      update: {},
+      create: { videoId, tagId: tag.id },
     })
   }
 }
-for (const raw of (arg('--tags') ?? '').split(',').map((s) => s.trim()).filter(Boolean).slice(0, 10)) {
-  const slug = raw.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
-  if (!slug) continue
-  const tag = await prisma.tag.upsert({
-    where: { slug },
-    update: {},
-    create: { name: raw.slice(0, 50), slug },
+
+async function uploadOne(filePath: string): Promise<string> {
+  const title = titleFor(filePath, explicitTitle, batch)
+  if (title.length < 3) throw new Error(`Derived title too short for ${basename(filePath)} — pass --title`)
+
+  const video = await prisma.video.create({
+    data: { creatorId, title, description, status: 'UPLOADING' },
     select: { id: true },
   })
-  await prisma.videoTag.upsert({
-    where: { videoId_tagId: { videoId: video.id, tagId: tag.id } },
-    update: {},
-    create: { videoId: video.id, tagId: tag.id },
+  await linkTaxonomy(video.id)
+
+  // Stage the source into UPLOAD_TMP_DIR (same layout the API uses).
+  // Single streaming pass: hash observes chunks while they pipe to disk.
+  const tmpRoot = process.env.UPLOAD_TMP_DIR || join(tmpdir(), 'darkhubb-uploads')
+  await fs.mkdir(tmpRoot, { recursive: true })
+  const tmpPath = join(tmpRoot, `${video.id}.upload`)
+  const hash = createHash('sha256')
+  let bytes = 0
+  await new Promise<void>((resolve, reject) => {
+    const rs = createReadStream(filePath)
+    const ws = createWriteStream(tmpPath)
+    rs.on('data', (chunk: string | Buffer) => {
+      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+      bytes += buf.length
+      hash.update(buf)
+    })
+    rs.on('error', reject)
+    ws.on('error', reject)
+    ws.on('finish', resolve)
+    rs.pipe(ws)
   })
-}
+  const checksum = hash.digest('hex')
 
-// Stage the source into UPLOAD_TMP_DIR (same layout the API uses) with hash.
-// Single streaming pass: hash observes chunks while they pipe to disk.
-const tmpRoot = process.env.UPLOAD_TMP_DIR || join(tmpdir(), 'darkhubb-uploads')
-await fs.mkdir(tmpRoot, { recursive: true })
-const tmpPath = join(tmpRoot, `${video.id}.upload`)
-const hash = createHash('sha256')
-let bytes = 0
-await new Promise<void>((resolve, reject) => {
-  const rs = createReadStream(fileArg)
-  const ws = createWriteStream(tmpPath)
-  rs.on('data', (chunk: string | Buffer) => {
-    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
-    bytes += buf.length
-    hash.update(buf)
+  await prisma.videoAsset.create({
+    data: {
+      id: `tmp-${video.id}`,
+      videoId: video.id,
+      type: 'ORIGINAL',
+      storageKey: tmpPath,
+      size: BigInt(bytes),
+      mimeType: 'video/mp4',
+      checksum,
+      fileSize: bytes,
+      storageStatus: 'UPLOADING',
+    },
   })
-  rs.on('error', reject)
-  ws.on('error', reject)
-  ws.on('finish', resolve)
-  rs.pipe(ws)
-})
-const checksum = hash.digest('hex')
-console.log(`Staged ${(bytes / 1048576).toFixed(1)}MB -> ${tmpPath} (sha256 ${checksum.slice(0, 12)}…)`)
-
-await prisma.videoAsset.create({
-  data: {
-    id: `tmp-${video.id}`,
-    videoId: video.id,
-    type: 'ORIGINAL',
-    storageKey: tmpPath,
-    size: BigInt(bytes),
-    mimeType: 'video/mp4',
-    checksum,
-    fileSize: bytes,
-    storageStatus: 'UPLOADING',
-  },
-})
-await prisma.video.update({ where: { id: video.id }, data: { status: 'PROCESSING' } })
-await prisma.auditLog.create({
-  data: { actorId: owner.id, action: 'VIDEO_UPLOAD_INIT', targetType: 'VIDEO', targetId: video.id, metadata: { via: 'upload-local', file: basename(fileArg), bytes } },
-})
-
-console.log(`Processing ${video.id} (transcode -> Telegram -> HLS, takes minutes for 1GB+)…`)
-const result = await processVideo(video.id)
-console.log(`Done: renditions ${result.renditions.join(', ')}, ${result.segments} segments, ${result.duration}s`)
-
-if (approve) {
-  await prisma.video.update({ where: { id: video.id }, data: { status: 'PUBLISHED', publishedAt: new Date() } })
+  await prisma.video.update({ where: { id: video.id }, data: { status: 'PROCESSING' } })
   await prisma.auditLog.create({
-    data: { actorId: owner.id, action: 'VIDEO_APPROVED', targetType: 'VIDEO', targetId: video.id, metadata: { via: 'upload-local --approve' } },
+    data: { actorId: ownerId, action: 'VIDEO_UPLOAD_INIT', targetType: 'VIDEO', targetId: video.id, metadata: { via: 'upload-local', file: basename(filePath), bytes } },
   })
-  console.log('Published (--approve).')
-} else {
-  console.log('Queued for review (PENDING_REVIEW) — approve in /admin/videos.')
+
+  const result = await processVideo(video.id)
+
+  if (approve) {
+    await prisma.video.update({ where: { id: video.id }, data: { status: 'PUBLISHED', publishedAt: new Date() } })
+    await prisma.auditLog.create({
+      data: { actorId: ownerId, action: 'VIDEO_APPROVED', targetType: 'VIDEO', targetId: video.id, metadata: { via: 'upload-local --approve' } },
+    })
+  }
+  return `${result.renditions.join(', ')} | ${result.segments} segs | ${result.duration}s${approve ? ' | PUBLISHED' : ' | PENDING_REVIEW'}`
 }
+
+let ok = 0
+const failed: { file: string; error: string }[] = []
+for (const [i, filePath] of files.entries()) {
+  const stat = await fs.stat(filePath).catch(() => null)
+  if (!stat?.isFile()) {
+    failed.push({ file: filePath, error: 'not a file' })
+    continue
+  }
+  if (stat.size > maxBytes) {
+    failed.push({ file: filePath, error: `exceeds ${(maxBytes / 1073741824).toFixed(1)}GB limit` })
+    continue
+  }
+  console.log(`[${i + 1}/${files.length}] ${basename(filePath)} (${(stat.size / 1073741824).toFixed(2)}GB)…`)
+  try {
+    const summary = await uploadOne(filePath)
+    ok += 1
+    console.log(`  ✓ ${summary}`)
+  } catch (err) {
+    const message = (err as Error).message
+    failed.push({ file: filePath, error: message })
+    console.error(`  ✗ ${message}`)
+  }
+}
+
+console.log(`\nDone: ${ok} succeeded, ${failed.length} failed.`)
+for (const f of failed) console.error(`  FAILED ${f.file}: ${f.error}`)
 await prisma.$disconnect()
+if (failed.length > 0) process.exitCode = 1
