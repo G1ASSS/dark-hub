@@ -71,6 +71,55 @@ export default function UploadPage() {
     }
   }
 
+  // Direct-to-staging upload (any size): browser PUTs straight to object
+  // storage, bypassing serverless caps. Returns null when staging is not
+  // configured (HTTP 501) so the caller falls back to chunked upload.
+  const uploadDirect = async (
+    meta: Record<string, unknown>,
+    f: File
+  ): Promise<{ videoId: string; key: string } | null> => {
+    const initRes = await fetch('/api/upload/r2/init', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ...meta, fileName: f.name, mimeType: f.type || 'video/mp4' }),
+    })
+    if (initRes.status === 501) return null
+    if (!initRes.ok) throw new Error(await apiError(initRes, 'Could not start upload'))
+    const { videoId, key, uploadUrl } = (await initRes.json()) as {
+      videoId: string
+      key: string
+      uploadUrl: string
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      xhr.open('PUT', uploadUrl)
+      xhr.setRequestHeader('Content-Type', f.type || 'video/mp4')
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100))
+      }
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) resolve()
+        else if (xhr.status === 0) {
+          reject(new Error('Direct upload blocked — check the bucket CORS setup (see .env.example R2 notes).'))
+        } else {
+          reject(new Error(`Direct upload failed (${xhr.status}) — try again`))
+        }
+      }
+      xhr.onerror = () =>
+        reject(new Error('Direct upload blocked — check the bucket CORS setup (see .env.example R2 notes).'))
+      xhr.send(f)
+    })
+
+    const doneRes = await fetch('/api/upload/r2/complete', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ videoId, key, bytes: f.size }),
+    })
+    if (!doneRes.ok) throw new Error(await apiError(doneRes, 'Could not finish upload'))
+    return { videoId, key }
+  }
+
   const CHUNK_SIZE = 4 * 1024 * 1024 // 4MB: under serverless body limits (~4.5MB)
 
   const uploadBytes = (videoId: string, f: File) =>
@@ -168,41 +217,51 @@ export default function UploadPage() {
       setStage('uploading')
       setProgress(0)
 
-      // 1. Reserve the video row (optionally linked as a series episode)
-      const initRes = await fetch('/api/upload/init', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          title,
-          description: description || undefined,
-          categorySlugs: selectedCategories,
-          tags,
-          ...(contentType === 'episode'
-            ? {
-                seriesSlug,
-                episodeNumber: episodeNumber ? Number(episodeNumber) : undefined,
-                episodeTitle: episodeTitle.trim() || undefined,
-              }
-            : {}),
-        }),
-      })
-      if (!initRes.ok) throw new Error(await apiError(initRes, 'Could not start upload'))
-      const { videoId } = (await initRes.json()) as { videoId: string }
-
-      // 2. Stream the bytes (chunked for large files, single-shot for small)
-      if (file.size > CHUNK_SIZE * 1.5) {
-        await uploadChunked(videoId, file)
-      } else {
-        await uploadBytes(videoId, file)
+      const meta = {
+        title,
+        description: description || undefined,
+        categorySlugs: selectedCategories,
+        tags,
+        ...(contentType === 'episode'
+          ? {
+              seriesSlug,
+              episodeNumber: episodeNumber ? Number(episodeNumber) : undefined,
+              episodeTitle: episodeTitle.trim() || undefined,
+            }
+          : {}),
       }
 
-      // 3. Confirm + queue for processing
-      const doneRes = await fetch('/api/upload/complete', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ videoId, bytes: file.size }),
-      })
-      if (!doneRes.ok) throw new Error(await apiError(doneRes, 'Could not finish upload'))
+      // 1-3. Prefer direct-to-staging (any size, free R2). Falls back to
+      // Vercel-compatible transports when staging is not configured.
+      const direct = await uploadDirect(meta, file)
+      let videoId: string
+      if (direct) {
+        videoId = direct.videoId
+      } else {
+        // 1. Reserve the video row (optionally linked as a series episode)
+        const initRes = await fetch('/api/upload/init', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(meta),
+        })
+        if (!initRes.ok) throw new Error(await apiError(initRes, 'Could not start upload'))
+        videoId = ((await initRes.json()) as { videoId: string }).videoId
+
+        // 2. Stream the bytes (chunked for large files, single-shot for small)
+        if (file.size > CHUNK_SIZE * 1.5) {
+          await uploadChunked(videoId, file)
+        } else {
+          await uploadBytes(videoId, file)
+        }
+
+        // 3. Confirm + queue for processing
+        const doneRes = await fetch('/api/upload/complete', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ videoId, bytes: file.size }),
+        })
+        if (!doneRes.ok) throw new Error(await apiError(doneRes, 'Could not finish upload'))
+      }
 
       // 4. Wait for the worker (scan → transcode → Telegram → review queue)
       setStage('processing')
@@ -284,7 +343,7 @@ export default function UploadPage() {
               <>
                 <Upload className="h-12 w-12 text-muted-foreground mb-3" />
                 <p className="font-medium text-sm">Drop your video here, or click to browse</p>
-                <p className="text-xs text-muted-foreground mt-1">MP4, WebM, MOV, MKV · Max 5 GB · large files upload in 4MB chunks</p>
+                <p className="text-xs text-muted-foreground mt-1">MP4, WebM, MOV, MKV · Max 5 GB · big files go direct, no chunk limit</p>
               </>
             )}
           </div>
