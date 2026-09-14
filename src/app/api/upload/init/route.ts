@@ -33,11 +33,14 @@ export async function POST(req: NextRequest) {
 
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
-    select: { role: true, creator: { select: { id: true } } },
+    select: { id: true, role: true, username: true, creator: { select: { id: true } } },
   })
   if (!user) return Response.json({ error: 'Account not found.' }, { status: 401 })
 
-  // Uploaders need a creator identity (auto-provisioned as PENDING) or a staff role.
+  // Uploaders need a creator identity.
+  // Admins/MODERATORS get an auto-approved profile. Regular users
+  // get a PENDING one that enters the review queue (admin approval
+  // is required before their videos publish).
   let creatorId = user.creator?.id
   if (!creatorId) {
     if (['ADMIN', 'MODERATOR'].includes(user.role)) {
@@ -53,10 +56,18 @@ export async function POST(req: NextRequest) {
       })
       creatorId = creator.id
     } else {
-      return Response.json(
-        { error: 'A creator profile is required to upload.' },
-        { status: 403 }
-      )
+      const profile = await prisma.profile.findUnique({ where: { userId: session.userId } })
+      const slug = `${user.username ?? session.userId.slice(0, 8).toLowerCase()}`
+      const creator = await prisma.creator.create({
+        data: {
+          userId: session.userId,
+          displayName: profile?.displayName ?? user.username ?? 'Creator',
+          slug,
+          verificationStatus: 'PENDING',
+          isVerified: false,
+        },
+      })
+      creatorId = creator.id
     }
   }
 
