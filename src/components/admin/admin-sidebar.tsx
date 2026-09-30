@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Users, Video, Flag, BadgeCheck,
-  BarChart2, Settings, ClipboardList, Copyright, LayoutGrid, Layers, CreditCard
+  BarChart2, Settings, ClipboardList, Copyright, LayoutGrid, Layers, CreditCard, ShoppingBag
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Logo } from '@/components/brand/logo'
@@ -16,6 +16,7 @@ const NAV = [
   { href: '/admin/series', label: 'Series', icon: Layers },
   { href: '/admin/categories', label: 'Categories & Covers', icon: LayoutGrid },
   { href: '/admin/reports', label: 'Reports', icon: Flag },
+  { href: '/admin/shop', label: 'Shop & Orders', icon: ShoppingBag },
   { href: '/admin/payments', label: 'Premium Payments', icon: CreditCard },
   { href: '/admin/copyright', label: 'Copyright', icon: Copyright },
   { href: '/admin/audit-log', label: 'Audit Log', icon: ClipboardList },

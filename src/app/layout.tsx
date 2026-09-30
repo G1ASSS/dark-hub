@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Outfit, Inter } from 'next/font/google'
+import { AmbientBackground } from '@/components/layout/ambient-background'
 import './globals.css'
 
 const outfit = Outfit({
@@ -61,7 +62,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <meta name="format-detection" content="telephone=no" />
       </head>
-      <body className="min-h-screen antialiased">{children}</body>
+      <body className="min-h-screen antialiased">
+        <AmbientBackground />
+        {children}
+      </body>
     </html>
   )
 }

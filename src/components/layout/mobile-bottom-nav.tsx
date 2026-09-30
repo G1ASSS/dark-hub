@@ -1,12 +1,12 @@
 "use client"
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Search, Grid3X3, User } from 'lucide-react'
+import { Home, ShoppingBag, Grid3X3, User } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 const NAV = [
-  { href: '/home',       icon: Home,    label: 'Home'    },
-  { href: '/search',     icon: Search,  label: 'Search'  },
+  { href: '/home',       icon: Home,        label: 'Home'    },
+  { href: '/search',     icon: ShoppingBag, label: 'Shop'    },
   { href: '/categories', icon: Grid3X3, label: 'Browse'  },
   { href: '/dashboard',  icon: User,    label: 'Account' },
 ]
